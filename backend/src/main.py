@@ -14,7 +14,7 @@ def initialize_backend_application() -> FastAPI:
     Instrumentator().instrument(app).expose(app)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=config_env.ALLOWED_ORIGINS,
+        allow_origins=["https://healthcareaibot.netlify.app"],
         allow_credentials=config_env.IS_ALLOWED_CREDENTIALS,
         allow_methods=config_env.ALLOWED_METHODS,
         allow_headers=config_env.ALLOWED_HEADERS,
