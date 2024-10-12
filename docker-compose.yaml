@@ -1,0 +1,84 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:latest
+    container_name: db
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgresql_db_data:/var/lib/postgresql/data/
+    expose:
+      - 5432
+    ports:
+      - 5432:5432
+
+  backend_app:
+    container_name: backend_app
+    restart: always
+    build:
+      dockerfile: Dockerfile
+      context: ./backend/
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/:/usr/backend/
+    expose:
+      - 8000
+    ports:
+      - 8001:8000
+    depends_on:
+      - db
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    restart: always
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - 3100:3100
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./local-config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    user: "root"
+    environment:
+      - GOGC=10
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+
+  promtail:
+    image: grafana/promtail:2.8.0
+    container_name: promtail
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - ./backend/app.log:/usr/backend/app.log
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+volumes:
+  postgresql_db_data:
+  prometheus_data:
+  grafana_data:
+  loki-data:
