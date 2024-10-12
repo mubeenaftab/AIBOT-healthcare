@@ -64,9 +64,11 @@ async def get_chatbot_response(user_message: str) -> dict:
         logger.info(f"Received response from OpenAI: {answer}")
 
         # First, check if the user explicitly requests a doctor or specialist
-        explicit_specialization = extract_specialization_from_user_message(
-            user_message
-        ).strip()
+        explicit_specialization = extract_specialization_from_user_message(user_message)
+        if explicit_specialization is None:
+            explicit_specialization = ""
+        else:
+            explicit_specialization = explicit_specialization.strip()
         if explicit_specialization:
             logger.info(
                 f"User explicitly requested a specialist: {explicit_specialization}"
