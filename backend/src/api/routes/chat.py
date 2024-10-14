@@ -1,29 +1,28 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 import pendulum
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.repository.database import get_db
+from sqlalchemy.future import select
+from src.api.routes.appointment import book_appointment
+from src.api.routes.reminder import activate_reminders_for_prescription
+from src.api.routes.timeslot import get_available_time_slots
+from src.api.routes.user import get_doctors_by_specialization
 from src.config.settings.logger_config import logger
-from src.securities.verification.credentials import get_current_user
+from src.models.db.appointment import Appointment as AppointmentModel
+from src.models.db.prescription import Prescription as PrescriptionModel
+from src.models.db.reminder import Reminder as ReminderModel
+from src.models.db.user import Patient as PatientModel
 from src.models.schemas.appointment import AppointmentCreate
 from src.models.schemas.chatbot import ChatQuery, ChatResponse
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.user import DoctorResponse
 from src.models.schemas.reminder import ReminderStatus
-from src.models.db.user import Patient as PatientModel
-from src.models.db.reminder import Reminder as ReminderModel
-from src.models.db.appointment import Appointment as AppointmentModel
-from src.models.db.prescription import Prescription as PrescriptionModel
+from src.models.schemas.user import DoctorResponse
 from src.repository.crud.chat import get_chatbot_response, reminder_queue
-from src.api.routes.appointment import book_appointment
-from src.api.routes.timeslot import get_available_time_slots
-from src.api.routes.user import get_doctors_by_specialization
-from src.api.routes.reminder import activate_reminders_for_prescription
-
+from src.repository.crud.prescription import mark_prescription_inactive
+from src.repository.database import get_db
+from src.securities.verification.credentials import get_current_user
 
 router = APIRouter()
 
@@ -74,7 +73,6 @@ async def chat_with_bot(
             response="The conversation has been reset. You can start by asking a new question.",
         )
 
-
     try:
         # Stage 1: Handling doctor selection
         if conversation_state["stage"] == "awaiting_doctor_selection":
@@ -96,14 +94,19 @@ async def chat_with_bot(
                         other_doctors_with_slots = []
                         for doc in conversation_state["doctors"]:
                             if doc.user_id != doctor_id:
-                                other_available_slots = await get_available_time_slots(doc.user_id, db)
+                                other_available_slots = await get_available_time_slots(
+                                    doc.user_id, db
+                                )
                                 if other_available_slots:
                                     other_doctors_with_slots.append(doc)
 
                         if other_doctors_with_slots:
                             # Create a list of doctors with available slots
                             doctor_list = "\n".join(
-                                [f"Dr. {doc.first_name} {doc.last_name}" for doc in other_doctors_with_slots]
+                                [
+                                    f"Dr. {doc.first_name} {doc.last_name}"
+                                    for doc in other_doctors_with_slots
+                                ]
                             )
                             return ChatResponse(
                                 response=(
@@ -190,8 +193,12 @@ async def chat_with_bot(
             if inactive_appointment:
                 prescriptions = await db.execute(
                     select(PrescriptionModel)
-                    .where(PrescriptionModel.patient_id == inactive_appointment.patient_id)
-                    .where(PrescriptionModel.doctor_id == inactive_appointment.doctor_id)
+                    .where(
+                        PrescriptionModel.patient_id == inactive_appointment.patient_id
+                    )
+                    .where(
+                        PrescriptionModel.doctor_id == inactive_appointment.doctor_id
+                    )
                 )
                 prescriptions = prescriptions.scalars().all()
 
@@ -202,7 +209,10 @@ async def chat_with_bot(
                         if prescription.is_active:
                             active_reminders = await db.execute(
                                 select(ReminderModel)
-                                .where(ReminderModel.prescription_id == prescription.prescription_id)
+                                .where(
+                                    ReminderModel.prescription_id
+                                    == prescription.prescription_id
+                                )
                                 .where(ReminderModel.status == ReminderStatus.ACTIVE)
                             )
                             if not active_reminders.scalars().first():
@@ -211,12 +221,16 @@ async def chat_with_bot(
                     if inactive_prescriptions:
                         conversation_state["stage"] = "activate_reminders"
                         conversation_state["prescriptions"] = [
-                            {"prescription_id": p.prescription_id, "details": p.medication_name}
+                            {
+                                "prescription_id": p.prescription_id,
+                                "details": p.medication_name,
+                            }
                             for p in inactive_prescriptions
                         ]
 
                         prescription_list = "\n".join(
-                            f"{idx + 1}. {p.medication_name}" for idx, p in enumerate(inactive_prescriptions)
+                            f"{idx + 1}. {p.medication_name}"
+                            for idx, p in enumerate(inactive_prescriptions)
                         )
 
                         return ChatResponse(
@@ -255,7 +269,15 @@ async def chat_with_bot(
 
         # Stage 5: stage to Activate reminders
         elif conversation_state["stage"] == "activate_reminders":
-            affirmative_responses = {"yes", "yeah", "yup", "sure", "ok", "alright", "go ahead"}
+            affirmative_responses = {
+                "yes",
+                "yeah",
+                "yup",
+                "sure",
+                "ok",
+                "alright",
+                "go ahead",
+            }
             negative_responses = {"no", "nope", "not now", "nah", "never mind"}
 
             if user_message.lower() in affirmative_responses:
@@ -263,26 +285,52 @@ async def chat_with_bot(
                     current_prescription = conversation_state["prescriptions"][0]
                     prescription_id = current_prescription["prescription_id"]
                     medication_name = current_prescription["details"]
-                    
-                    logger.debug(f"Activating reminders for prescription: {prescription_id}, medication: {medication_name}")
-                    
+
+                    logger.debug(
+                        f"Activating reminders for prescription: {prescription_id}, medication: {medication_name}"
+                    )
+
                     try:
-                        activated_reminders = await activate_reminders_for_prescription(prescription_id, db)
-                        reminder_times = ", ".join([r.reminder_time.strftime("%I:%M %p") for r in activated_reminders])
+                        activated_reminders = await activate_reminders_for_prescription(
+                            prescription_id, db
+                        )
+                        reminder_times = ", ".join(
+                            [
+                                r.reminder_time.strftime("%I:%M %p")
+                                for r in activated_reminders
+                            ]
+                        )
+
+                        # Mark the prescription as inactive
+                        updated_prescription = await mark_prescription_inactive(
+                            db, prescription_id
+                        )
+                        if updated_prescription is None:
+                            logger.warning(
+                                f"Failed to mark prescription {prescription_id} as inactive"
+                            )
+                        else:
+                            logger.info(
+                                f"Prescription {prescription_id} marked as inactive"
+                            )
 
                         conversation_state["prescriptions"].pop(0)
 
                         if conversation_state["prescriptions"]:
-                            next_medication = conversation_state["prescriptions"][0]["details"]
+                            next_medication = conversation_state["prescriptions"][0][
+                                "details"
+                            ]
                             return ChatResponse(
                                 response=f"Reminders for {medication_name} have been activated for: {reminder_times}. "
-                                        f"Would you like to activate reminders for the next prescription ({next_medication})? (Yes/No)"
+                                f"The prescription has been marked as inactive. "
+                                f"Would you like to activate reminders for the next prescription ({next_medication})? (Yes/No)"
                             )
                         else:
                             conversation_state["stage"] = "general"
                             return ChatResponse(
                                 response=f"Reminders for {medication_name} have been activated. You'll receive reminders at: {reminder_times}. "
-                                        "All prescriptions have been processed."
+                                "The prescription has been marked as inactive. "
+                                "All prescriptions have been processed."
                             )
                     except HTTPException as e:
                         conversation_state["stage"] = "general"
@@ -303,7 +351,6 @@ async def chat_with_bot(
                 return ChatResponse(
                     response="I didn't understand that. Please answer with 'Yes' or 'No' (or similar terms).",
                 )
-
 
         # Default: Handle general conversation and suggest doctors if needed
         chatbot_response = await get_chatbot_response(user_message)
@@ -363,13 +410,20 @@ async def chat_with_bot(
         raise HTTPException(
             status_code=500, detail="Failed to communicate with the chatbot."
         ) from e
-    
+
 
 @router.get("/chat/reminders")
 async def get_reminders():
-    reminders = []
-    logger.info("reminders: ", reminders)
+    """
+    Retrieve reminders from the reminder queue.
+
+    This endpoint fetches all reminders currently in the reminder queue.
+    It extracts reminders from the queue until it is empty and returns them as a list.
+
+    Returns:
+        JSONResponse: A JSON response containing a list of reminders.
+    """
+    reminders: List[str] = []
     while not reminder_queue.empty():
         reminders.append(reminder_queue.get())
-        logger.info("reminders: ", reminders)
     return JSONResponse(content={"reminders": reminders})

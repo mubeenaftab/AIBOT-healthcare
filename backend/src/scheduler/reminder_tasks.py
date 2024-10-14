@@ -3,12 +3,11 @@ from typing import List
 import pendulum
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.future import select
-
 from src.config.settings.logger_config import logger
 from src.models.db.prescription import Prescription as PrescriptionModel
 from src.models.db.reminder import Reminder as ReminderModel
 from src.models.schemas.reminder import ReminderStatus
-from src.repository.crud.chat import enqueue_reminder
+from src.repository.crud.chat import enqueue_reminders
 from src.repository.database import get_db
 
 scheduler = AsyncIOScheduler()
@@ -34,7 +33,6 @@ async def trigger_reminder_task() -> None:
         Exception: If there is any issue with database access or during reminder processing.
     """
     try:
-        # Retrieve database session asynchronously
         async for db in get_db():
             try:
                 now = pendulum.now()
@@ -49,12 +47,17 @@ async def trigger_reminder_task() -> None:
                 )
                 active_reminders: List[ReminderModel] = reminders.scalars().all()
 
+                medication_names: List[str] = []
                 for reminder in active_reminders:
-                    prescription = await db.get(PrescriptionModel, reminder.prescription_id)
-
-                    await enqueue_reminder(prescription)
+                    prescription = await db.get(
+                        PrescriptionModel, reminder.prescription_id
+                    )
+                    medication_names.append(prescription.medication_name)
 
                     await db.delete(reminder)
+
+                if medication_names:
+                    await enqueue_reminders(medication_names)
 
                 await db.commit()
 

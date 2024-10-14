@@ -99,20 +99,9 @@ async def get_available_time_slots(
 
     Returns:
         List[TimeSlot]: A list of available time slots for the given doctor.
-
-    Raises:
-        HTTPException: If no available time slots are found.
     """
     slots = await get_available_time_slots_from_db(db, doctor_id)
-    if not slots:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                detail="No available time slots found for the doctor",
-                status_code=status.HTTP_404_NOT_FOUND,
-            ).dict(),
-        )
-    return [TimeSlot.from_orm(slot) for slot in slots]
+    return [TimeSlot.from_orm(slot) for slot in slots] if slots else []
 
 
 @router.get(

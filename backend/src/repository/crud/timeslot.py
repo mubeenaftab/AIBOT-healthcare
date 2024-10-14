@@ -17,14 +17,28 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.config.settings.logger_config import logger
+from src.models.db.appointment import Appointment as AppointmentModel
 from src.models.db.timeslot import TimeSlot as TimeSlotModel
 from src.models.schemas.timeslot import TimeSlotCreate
-
 
 
 async def create_time_slot(
     db: AsyncSession, time_slot: TimeSlotCreate, doctor_id: UUID
 ) -> TimeSlotModel:
+    """
+    Create a new time slot for a doctor.
+
+    Args:
+        db (AsyncSession): The database session for performing queries.
+        time_slot (TimeSlotCreate): The time slot data including start time, end time, and status.
+        doctor_id (UUID): The ID of the doctor for whom the time slot is being created.
+
+    Returns:
+        TimeSlotModel: The newly created time slot.
+
+    Raises:
+        Exception: If there is an error during the creation of the time slot.
+    """
     try:
         db_time_slot = TimeSlotModel(
             doctor_id=doctor_id,
@@ -125,3 +139,30 @@ async def get_timeslot_by_doctor_id_from_db(db: AsyncSession, doctor_id: str):
         select(TimeSlotModel).filter(TimeSlotModel.doctor_id == doctor_id)
     )
     return result.scalars().first()
+
+
+async def delete_oldest_timeslot_by_doctor_and_patient(
+    db: AsyncSession, appointment: AppointmentModel
+) -> None:
+    """
+    Retrieve and delete the oldest time slot associated with a specific doctor and patient from the database.
+
+    Args:
+        db (AsyncSession): The database session to execute the query.
+        appointment (AppointmentModel): The appointment containing the doctor and patient IDs.
+
+    Returns:
+        None
+    """
+    result = await db.execute(
+        select(TimeSlotModel)
+        .filter(TimeSlotModel.doctor_id == appointment.doctor_id)
+        .order_by(TimeSlotModel.start_time.asc())
+    )
+
+    oldest_timeslot = result.scalars().first()
+
+    if oldest_timeslot:
+        await db.delete(oldest_timeslot)
+        await db.commit()
+        logger.info(f"Deleted time slot with ID: {oldest_timeslot.time_slot_id}")
