@@ -8,7 +8,7 @@ Imports for integrating OpenAI and application configuration settings.
 
 import re
 from queue import Queue
-from typing import Any
+from typing import List
 
 from openai import OpenAI
 from src.config.settings.base import config_env
@@ -31,15 +31,14 @@ Here's how you should respond:
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 
-async def enqueue_reminder(prescription: Any) -> None:
+async def enqueue_reminders(medication_names: List[str]) -> None:
     """
-    Enqueue a reminder message for the given prescription.
+    Enqueue a reminder message for the given medications.
 
     Args:
-        prescription (Any): The prescription object containing the medication name.
+        medication_names (List[str]): List of medication names.
     """
-    medication_name = prescription.medication_name
-    reminder_message = await generate_reminder_message(medication_name)
+    reminder_message = await generate_reminder_message(medication_names)
     reminder_queue.put(reminder_message)
 
 
@@ -64,11 +63,10 @@ async def get_chatbot_response(user_message: str) -> dict:
         logger.info(f"Received response from OpenAI: {answer}")
 
         # First, check if the user explicitly requests a doctor or specialist
-        explicit_specialization = extract_specialization_from_user_message(user_message)
-        if explicit_specialization is None:
-            explicit_specialization = ""
-        else:
-            explicit_specialization = explicit_specialization.strip()
+        explicit_specialization = (
+            extract_specialization_from_user_message(user_message) or ""
+        ).strip()
+
         if explicit_specialization:
             logger.info(
                 f"User explicitly requested a specialist: {explicit_specialization}"
@@ -368,32 +366,34 @@ def needs_doctor(user_message: str, response: str) -> bool:
 
 REMINDER_SYSTEM_PROMPT = """
 You are a healthcare assistant bot focused solely on providing reminders for medication. Your role is to help users remember their medication schedules. 
-Here’s how you should respond:
-1. Generate a friendly and encouraging reminder message for the specified medication.
-2. Include the medication name in a natural and engaging way.
-3. Emphasize the importance of taking the medication as prescribed.
+Here's how you should respond:
+1. Generate a friendly and encouraging reminder message for the specified medications.
+2. Include all medication names in a natural and engaging way.
+3. Emphasize the importance of taking the medications as prescribed.
 4. Maintain a positive and supportive tone in your responses.
+5. Keep the message concise and clear.
 """
 
 
-async def generate_reminder_message(medication_name: str) -> str:
+async def generate_reminder_message(medication_names: List[str]) -> str:
     """
-    Generate a reminder message using OpenAI's API.
+    Generate a reminder message using OpenAI's API for multiple medications.
 
     Args:
-        medication_name (str): The name of the medication.
+        medication_names (List[str]): The names of the medications.
 
     Returns:
-        str: A personalized reminder message.
+        str: A personalized reminder message for all medications.
     """
-    user_message = f"Remind me to take my medication: {medication_name}."
-    logger.info(f"Generating reminder message for medication: {medication_name}")
+    medications_str = ", ".join(medication_names)
+    user_message = f"Remind me to take my medications: {medications_str}."
+    logger.info(f"Generating reminder message for medications: {medications_str}")
 
     try:
-        conversation_history.append(
-            {"role": "system", "content": REMINDER_SYSTEM_PROMPT}
-        )
-        conversation_history.append({"role": "user", "content": user_message})
+        conversation_history = [
+            {"role": "system", "content": REMINDER_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -405,10 +405,8 @@ async def generate_reminder_message(medication_name: str) -> str:
         )
 
         answer = response.choices[0].message.content
-        conversation_history.append({"role": "assistant", "content": answer})
-
         logger.info(f"Generated reminder message: {answer}")
         return answer
     except Exception as e:
         logger.error(f"Failed to generate reminder message: {e}")
-        return f"Reminder: Please take your medication {medication_name}. Take care of yourself!"
+        return f"Reminder: Please take your medications: {medications_str}. Take care of yourself!"
