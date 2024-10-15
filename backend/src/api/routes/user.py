@@ -53,6 +53,7 @@ from src.repository.crud.user import (
     create_admin,
     create_doctor,
     create_patient,
+    get_doctor_by_id_from_db,
     get_doctors_by_specialization_from_db,
     get_patient_by_id_from_db,
 )
@@ -338,3 +339,42 @@ async def get_patient_by_id(
 
     logger.info(f"Patient with ID {patient_id} found: {patient}")
     return Patient.from_orm(patient)
+
+
+@router.get(
+    "/doctors/{doctor_id}",
+    response_model=Doctor,
+    responses={404: {"model": ErrorResponse}},
+)
+async def get_doctor_by_id(
+    doctor_id: str, db: AsyncSession = Depends(get_db)
+) -> Doctor:
+    """
+    Get a doctor by ID.
+
+    Args:
+        doctor_id (str): The ID of the doctor.
+        db (AsyncSession): The database session.
+
+    Returns:
+        Doctor: The doctor with the specified ID.
+
+    Raises:
+        HTTPException: If the doctor is not found.
+    """
+    logger.info(f"Fetching doctor with ID: {doctor_id}")
+
+    doctor = await get_doctor_by_id_from_db(db, doctor_id)
+
+    if not doctor:
+        logger.warning(f"Doctor with ID {doctor_id} not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                detail="Doctor not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            ).dict(),
+        )
+
+    logger.info(f"Doctor with ID {doctor_id} found: {doctor}")
+    return Doctor.from_orm(doctor)
