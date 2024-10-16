@@ -170,7 +170,9 @@ async def chat_with_bot(
                 return ChatResponse(
                     response=(
                         f"Your appointment with Dr. {conversation_state['selected_doctor'].first_name} {conversation_state['selected_doctor'].last_name} "
-                        f"has been successfully booked for {selected_slot.start_time.strftime('%I:%M %p')} - {selected_slot.end_time.strftime('%I:%M %p')[:-3]}. "
+                        f"has been successfully booked for {selected_slot.start_time.strftime('%I:%M %p')} - {selected_slot.end_time.strftime('%I:%M %p')[:-3]}. \n"
+                        "You can ask any time about your prescrition If prescriptions are available, I can help you activate medication reminders."
+                        "If no prescriptions are entered yet, I'll let you know.\n"
                         "You can type 'reset' or 'start over' at any time to begin a new conversation."
                     ),
                 )
