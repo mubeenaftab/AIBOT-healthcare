@@ -1,21 +1,21 @@
 """
-This module defines Pydantic schemas for user-related data.
+This module defines Pydantic schemas for user-related data in a healthcare application.
 
 These schemas are used for validating and serializing user data, such as
 user creation, login, and profile information, within the FastAPI application.
+The module includes schemas for patients, doctors, and admins.
 
 Imports:
-    - BaseModel from Pydantic for creating data validation and serialization models.
-    - EmailStr from Pydantic for validating email addresses.
-    - UUID4 from Pydantic for handling UUID fields.
-    - Optional from typing for defining optional fields.
+    - re: For regular expression operations.
+    - date, datetime: For handling date and time fields.
+    - Page from fastapi_pagination: For paginated responses.
+    - UUID4, BaseModel, Field, field_validator from pydantic: For data validation and serialization.
 """
 
 import re
 from datetime import date, datetime
 
 from fastapi_pagination import Page
-
 from pydantic import UUID4, BaseModel, Field, field_validator
 
 
@@ -24,8 +24,9 @@ class UserBase(BaseModel):
     Base schema for user data, used as a base class for other user schemas.
 
     Attributes:
-        username (str): The username of the user.
-
+        username (str): The username of the user. Must be 3-80 characters long,
+                        start with a letter, and contain only letters, numbers,
+                        underscores, and hyphens.
     """
 
     username: str = Field(
@@ -35,31 +36,56 @@ class UserBase(BaseModel):
         description="Username must be between 3 and 80 characters long",
     )
 
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        """
+        Validate the username format.
+
+        Args:
+            value (str): The username to validate.
+
+        Returns:
+            str: The validated username.
+
+        Raises:
+            ValueError: If the username format is invalid.
+        """
+        if value[0].isdigit():
+            raise ValueError("Username cannot start with a number")
+        if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", value):
+            raise ValueError(
+                "Username must start with a letter and can only contain "
+                "letters, numbers, underscores, and hyphens"
+            )
+        return value
+
 
 class UserCreate(UserBase):
     """
     Schema for user creation, extending the base user schema.
 
     Attributes:
-        password (str): The password for the user account.
+        password (str): The password for the user account. Must be at least 8
+                        characters long and meet complexity requirements.
     """
 
     password: str = Field(..., min_length=8)
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, password: str):
+    def validate_password(cls, password: str) -> str:
         """
-        Validates the password to ensure it meets complexity requirements.
+        Validate the password complexity.
 
         Args:
-            password (str): The password for the user account.
+            password (str): The password to validate.
 
         Returns:
-            str: The validated password if it meets the requirements.
+            str: The validated password.
 
         Raises:
-            ValueError: If the password does not meet the complexity requirements.
+            ValueError: If the password does not meet complexity requirements.
         """
         if not re.search(r"[A-Z]", password):
             raise ValueError("Password must contain at least one uppercase letter")
@@ -75,8 +101,6 @@ class UserCreate(UserBase):
 class PatientCreate(UserCreate):
     """
     Schema for creating a new patient user.
-
-    Inherits from UserCreate and adds fields specific to patient creation.
 
     Attributes:
         first_name (str): First name of the patient (2-50 characters).
@@ -100,25 +124,44 @@ class PatientCreate(UserCreate):
     phone_number: str = Field(...)
     dob: date = Field(..., description="Date of birth of the patient")
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """
+        Validate that the name does not start with a number.
+
+        Args:
+            value (str): The name to validate.
+
+        Returns:
+            str: The validated name.
+
+        Raises:
+            ValueError: If the name starts with a number.
+        """
+        if value[0].isdigit():
+            raise ValueError("Name cannot start with a number")
+        return value
+
     @field_validator("phone_number")
     @classmethod
-    def validate_phone_number(cls, value):
+    def validate_phone_number(cls, value: str) -> str:
         """
         Validate that the phone number is a valid Pakistani number.
 
-        The phone number must start with '03', be exactly 11 digits long,
-        and consist only of digits.
-
         Args:
-            cls: The class being validated.
             value (str): The phone number to validate.
+
+        Returns:
+            str: The validated phone number.
 
         Raises:
             ValueError: If the phone number is invalid.
         """
         if not value.startswith("03") or len(value) != 11 or not value.isdigit():
             raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' and exactly 11 digits long"
+                "Phone number must be a valid Pakistani number starting with '03' "
+                "and exactly 11 digits long"
             )
         return value
 
@@ -126,8 +169,6 @@ class PatientCreate(UserCreate):
 class DoctorCreate(UserCreate):
     """
     Schema for creating a new doctor user.
-
-    Inherits from UserCreate and adds fields specific to doctor creation.
 
     Attributes:
         first_name (str): First name of the doctor (2-50 characters).
@@ -156,25 +197,44 @@ class DoctorCreate(UserCreate):
     )
     phone_number: str = Field(...)
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """
+        Validate that the name does not start with a number.
+
+        Args:
+            value (str): The name to validate.
+
+        Returns:
+            str: The validated name.
+
+        Raises:
+            ValueError: If the name starts with a number.
+        """
+        if value[0].isdigit():
+            raise ValueError("Name cannot start with a number")
+        return value
+
     @field_validator("phone_number")
     @classmethod
-    def validate_phone_number(cls, value):
+    def validate_phone_number(cls, value: str) -> str:
         """
         Validate that the phone number is a valid Pakistani number.
 
-        The phone number must start with '03', be exactly 11 digits long,
-        and consist only of digits.
-
         Args:
-            cls: The class being validated.
             value (str): The phone number to validate.
+
+        Returns:
+            str: The validated phone number.
 
         Raises:
             ValueError: If the phone number is invalid.
         """
         if not value.startswith("03") or len(value) != 11 or not value.isdigit():
             raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' and exactly 11 digits long"
+                "Phone number must be a valid Pakistani number starting with '03' "
+                "and exactly 11 digits long"
             )
         return value
 
@@ -183,8 +243,8 @@ class AdminCreate(UserCreate):
     """
     Schema for creating a new admin user.
 
-    Inherits from UserCreate. Currently, it does not add any new fields,
-    but it can be extended in the future.
+    This class inherits from UserCreate without adding any new fields.
+    It can be extended in the future if needed.
     """
 
     pass
@@ -208,29 +268,50 @@ class Patient(UserBase):
     phone_number: str = Field(...)
     dob: date
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """
+        Validate that the name does not start with a number.
+
+        Args:
+            value (str): The name to validate.
+
+        Returns:
+            str: The validated name.
+
+        Raises:
+            ValueError: If the name starts with a number.
+        """
+        if value[0].isdigit():
+            raise ValueError("Name cannot start with a number")
+        return value
+
     @field_validator("phone_number")
     @classmethod
-    def validate_phone_number(cls, value):
+    def validate_phone_number(cls, value: str) -> str:
         """
         Validate that the phone number is a valid Pakistani number.
 
-        The phone number must start with '03', be exactly 11 digits long,
-        and consist only of digits.
-
         Args:
-            cls: The class being validated.
             value (str): The phone number to validate.
+
+        Returns:
+            str: The validated phone number.
 
         Raises:
             ValueError: If the phone number is invalid.
         """
         if not value.startswith("03") or len(value) != 11 or not value.isdigit():
             raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' and exactly 11 digits long"
+                "Phone number must be a valid Pakistani number starting with '03' "
+                "and exactly 11 digits long"
             )
         return value
 
     class Config:
+        """Configuration for the Patient model."""
+
         from_attributes = True
 
 
@@ -252,29 +333,50 @@ class Doctor(UserBase):
     specialization: str = Field(..., min_length=3, max_length=100)
     phone_number: str = Field(...)
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """
+        Validate that the name does not start with a number.
+
+        Args:
+            value (str): The name to validate.
+
+        Returns:
+            str: The validated name.
+
+        Raises:
+            ValueError: If the name starts with a number.
+        """
+        if value[0].isdigit():
+            raise ValueError("Name cannot start with a number")
+        return value
+
     @field_validator("phone_number")
     @classmethod
-    def validate_phone_number(cls, value):
+    def validate_phone_number(cls, value: str) -> str:
         """
         Validate that the phone number is a valid Pakistani number.
 
-        The phone number must start with '03', be exactly 11 digits long,
-        and consist only of digits.
-
         Args:
-            cls: The class being validated.
             value (str): The phone number to validate.
+
+        Returns:
+            str: The validated phone number.
 
         Raises:
             ValueError: If the phone number is invalid.
         """
         if not value.startswith("03") or len(value) != 11 or not value.isdigit():
             raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' and exactly 11 digits long"
+                "Phone number must be a valid Pakistani number starting with '03' "
+                "and exactly 11 digits long"
             )
         return value
 
     class Config:
+        """Configuration for the Doctor model."""
+
         from_attributes = True
 
 
@@ -289,6 +391,8 @@ class Admin(UserBase):
     user_id: UUID4
 
     class Config:
+        """Configuration for the Admin model."""
+
         from_attributes = True
 
 
@@ -307,12 +411,7 @@ class User(UserBase):
     timestamp: datetime
 
     class Config:
-        """
-        Configuration for the Pydantic model.
-
-        Enables compatibility with ORM models by allowing the model to
-        be populated from attributes of an ORM model instance.
-        """
+        """Configuration for the User model."""
 
         from_attributes = True
 
