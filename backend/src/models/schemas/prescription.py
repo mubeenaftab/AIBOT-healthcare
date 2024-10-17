@@ -12,7 +12,7 @@ class PrescriptionBase(BaseModel):
     """
 
     medication_name: str = Field(..., min_length=2, max_length=100, description="Name of the medication")
-    dosage: str = Field(..., description="Dosage in the format 'number mg/ml', e.g., '500 mg' or '10 ml'")
+    dosage: str = Field(..., min_length=3, max_length=10,  description="Dosage in the format 'number mg/ml', e.g., '500 mg' or '10 ml'")
     frequency: conint(ge=1, le=3) = Field(..., description="Frequency of the medication intake per day (1 to 3 times per day)")
     duration: conint(ge=1, le=30) = Field(..., description="Duration for which the medication is prescribed (1 to 30)")
     instructions: Optional[str] = Field(None, max_length=255, description="Additional instructions for the patient")
@@ -43,7 +43,7 @@ class PrescriptionUpdate(PrescriptionBase):
     """
 
     medication_name: Optional[str] = Field(None, min_length=2, max_length=100)
-    dosage: Optional[str] = Field(None)
+    dosage: Optional[str] = Field(None,  min_length=3, max_length=10)
     frequency: Optional[conint(ge=1, le=3)]
     duration: Optional[conint(ge=1, le=30)]
     instructions: Optional[str] = Field(None, max_length=255)
