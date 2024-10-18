@@ -1,6 +1,8 @@
+from uuid import UUID
 from typing import List
 
 import pendulum
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings.logger_config import logger
@@ -120,5 +122,40 @@ async def activate_reminders(
 
     except Exception as e:
         logger.error(f"Error activating reminders: {e}")
+        await db.rollback()
+        raise
+
+async def update_reminder_times(prescription_id: UUID, new_times: list[dict], db: AsyncSession):
+    """
+    Update the reminder times for a given prescription.
+
+    Args:
+        prescription_id (int): The ID of the prescription to update reminders for.
+        new_times (list[dict]): A list of new reminder times with 'hour' and 'minute'.
+        db (AsyncSession): The database session to use.
+    """
+    try:
+        reminders = await db.execute(
+            select(ReminderModel)
+            .where(ReminderModel.prescription_id == prescription_id)
+            .order_by(ReminderModel.reminder_date)
+        )
+        reminders = reminders.scalars().all()
+        logger.debug("reminders: ", reminders)
+
+        if reminders:
+            new_times_count = len(new_times)
+            
+            for i, reminder in enumerate(reminders):
+                time_index = i % new_times_count
+                reminder.reminder_time = pendulum.time(new_times[time_index]['hour'], new_times[time_index]['minute'])
+            
+            await db.commit()
+            logger.info(f"Reminder times updated for prescription ID: {prescription_id}")
+        else:
+            logger.warning(f"No reminders found for prescription ID: {prescription_id}")
+    
+    except Exception as e:
+        logger.error(f"Error updating reminders for prescription {prescription_id}: {e}")
         await db.rollback()
         raise

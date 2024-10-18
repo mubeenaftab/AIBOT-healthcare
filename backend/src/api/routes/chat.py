@@ -21,8 +21,10 @@ from src.models.schemas.reminder import ReminderStatus
 from src.models.schemas.user import DoctorResponse
 from src.repository.crud.chat import get_chatbot_response, reminder_queue
 from src.repository.crud.prescription import mark_prescription_inactive
+from src.repository.crud.reminder import update_reminder_times
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -61,7 +63,15 @@ async def chat_with_bot(
     user_message = query.user_message.strip().lower()
     logger.info(f"Received message: {user_message}")
 
+    # Check if current_user is properly resolved
+    if current_user is None or not hasattr(current_user, 'user_id'):
+        logger.error("Current user is not properly resolved")
+        raise HTTPException(status_code=401, detail="Could not authenticate user")
+
     patient_id = current_user.user_id
+    logger.debug(f"patient_id: {patient_id}")
+
+
 
     # Check if the user wants to reset the conversation
     if user_message in ["reset", "start over"]:
@@ -72,6 +82,7 @@ async def chat_with_bot(
         return ChatResponse(
             response="The conversation has been reset. You can start by asking a new question.",
         )
+
 
     try:
         # Stage 1: Handling doctor selection
@@ -94,19 +105,14 @@ async def chat_with_bot(
                         other_doctors_with_slots = []
                         for doc in conversation_state["doctors"]:
                             if doc.user_id != doctor_id:
-                                other_available_slots = await get_available_time_slots(
-                                    doc.user_id, db
-                                )
+                                other_available_slots = await get_available_time_slots(doc.user_id, db)
                                 if other_available_slots:
                                     other_doctors_with_slots.append(doc)
 
                         if other_doctors_with_slots:
                             # Create a list of doctors with available slots
                             doctor_list = "\n".join(
-                                [
-                                    f"Dr. {doc.first_name} {doc.last_name}"
-                                    for doc in other_doctors_with_slots
-                                ]
+                                [f"Dr. {doc.first_name} {doc.last_name}" for doc in other_doctors_with_slots]
                             )
                             return ChatResponse(
                                 response=(
@@ -170,10 +176,10 @@ async def chat_with_bot(
                 return ChatResponse(
                     response=(
                         f"Your appointment with Dr. {conversation_state['selected_doctor'].first_name} {conversation_state['selected_doctor'].last_name} "
-                        f"has been successfully booked for {selected_slot.start_time.strftime('%I:%M %p')} - {selected_slot.end_time.strftime('%I:%M %p')[:-3]}. \n"
-                        "You can ask any time about your prescrition If prescriptions are available, I can help you activate medication reminders."
-                        "If no prescriptions are entered yet, I'll let you know.\n"
-                        "You can type 'reset' or 'start over' at any time to begin a new conversation."
+                        f"has been successfully booked for {selected_slot.start_time.strftime('%I:%M %p')} - {selected_slot.end_time.strftime('%I:%M %p')}. \n\n"
+                         "You can ask any time about your prescrition If prescriptions are available, I can help you activate medication reminders. "
+                         "If no prescriptions are entered yet, I'll let you know.\n"
+                         "You can type 'reset' or 'start over' at any time to begin a new conversation."
                     ),
                 )
 
@@ -181,40 +187,32 @@ async def chat_with_bot(
                 response="The selected time slot is not available. Please enter a valid number corresponding to the slot, or type 'reset' to start over.",
             )
 
-        # Stage 3: Checking for the prescription
+        # Stage 3: Checking for Inactive Prescriptions
         elif conversation_state["stage"] == "check_inactive_appointments":
-            patient_id = patient_id
             inactive_appointments = await db.execute(
                 select(AppointmentModel)
                 .where(AppointmentModel.patient_id == patient_id)
-                .where(AppointmentModel.is_active == False)
+                .where(AppointmentModel.is_active.is_(False))
                 .order_by(AppointmentModel.appointment_date.desc())
             )
             inactive_appointment = inactive_appointments.scalars().first()
-
+            logger.debug(f"inactive_appointment: {inactive_appointment}")
+            
             if inactive_appointment:
                 prescriptions = await db.execute(
                     select(PrescriptionModel)
-                    .where(
-                        PrescriptionModel.patient_id == inactive_appointment.patient_id
-                    )
-                    .where(
-                        PrescriptionModel.doctor_id == inactive_appointment.doctor_id
-                    )
+                    .where(PrescriptionModel.patient_id == inactive_appointment.patient_id)
+                    .where(PrescriptionModel.doctor_id == inactive_appointment.doctor_id)
                 )
                 prescriptions = prescriptions.scalars().all()
 
                 if prescriptions:
                     inactive_prescriptions = []
                     for prescription in prescriptions:
-                        # Check if prescription is active before considering it
                         if prescription.is_active:
                             active_reminders = await db.execute(
                                 select(ReminderModel)
-                                .where(
-                                    ReminderModel.prescription_id
-                                    == prescription.prescription_id
-                                )
+                                .where(ReminderModel.prescription_id == prescription.prescription_id)
                                 .where(ReminderModel.status == ReminderStatus.ACTIVE)
                             )
                             if not active_reminders.scalars().first():
@@ -223,41 +221,27 @@ async def chat_with_bot(
                     if inactive_prescriptions:
                         conversation_state["stage"] = "activate_reminders"
                         conversation_state["prescriptions"] = [
-                            {
-                                "prescription_id": p.prescription_id,
-                                "details": p.medication_name,
-                            }
+                            {"prescription_id": p.prescription_id, "details": p.medication_name}
                             for p in inactive_prescriptions
                         ]
-
                         prescription_list = "\n".join(
-                            f"{idx + 1}. {p.medication_name}"
-                            for idx, p in enumerate(inactive_prescriptions)
+                            f"{idx + 1}. {p.medication_name}" for idx, p in enumerate(inactive_prescriptions)
                         )
-
                         return ChatResponse(
-                            response=(
-                                f"I found the following prescriptions:\n{prescription_list}\n"
-                                "Would you like to activate reminders for any of them? (Yes/No)"
-                            ),
+                            response=f"I found the following prescriptions:\n{prescription_list}\n"
+                                    "Would you like to activate reminders for any of them? (Yes/No)"
                         )
                     else:
                         conversation_state["stage"] = "waiting_for_exit"
-                        return ChatResponse(
-                            response="All your active prescriptions already have active reminders.",
-                        )
+                        return ChatResponse(response="All your active prescriptions already have active reminders.")
                 else:
                     conversation_state["stage"] = "waiting_for_exit"
-                    return ChatResponse(
-                        response="It appears that your doctor hasn't entered any new prescriptions for you at the moment.",
-                    )
+                    return ChatResponse(response="It appears that your doctor hasn't entered any new prescriptions for you at the moment.")
             else:
                 conversation_state["stage"] = "waiting_for_exit"
-                return ChatResponse(
-                    response="It appears that your doctor hasn't entered any prescriptions for you at the moment.",
-                )
+                return ChatResponse(response="It appears that your doctor hasn't entered any prescriptions for you at the moment.")
 
-        # Stage 4: stage to handle exit keywords
+        # Stage 4: Handle exit keywords
         elif conversation_state["stage"] == "waiting_for_exit":
             if user_message.lower() in ["ok", "okay", "fine", "thanks", "exit", "no"]:
                 conversation_state["stage"] = "reset"
@@ -269,90 +253,132 @@ async def chat_with_bot(
                     response="I'm sorry, I didn't understand that. If you're done, you can say 'okay' or 'exit'. Is there anything else I can help you with?",
                 )
 
-        # Stage 5: stage to Activate reminders
+        # Stage 5: Activate Reminders and Ask for Update
         elif conversation_state["stage"] == "activate_reminders":
-            affirmative_responses = {
-                "yes",
-                "yeah",
-                "yup",
-                "sure",
-                "ok",
-                "alright",
-                "go ahead",
-            }
+            affirmative_responses = {"yes", "yeah", "yup", "sure", "ok", "alright", "go ahead"}
             negative_responses = {"no", "nope", "not now", "nah", "never mind"}
 
             if user_message.lower() in affirmative_responses:
                 if conversation_state["prescriptions"]:
-                    current_prescription = conversation_state["prescriptions"][0]
+                    current_prescription = conversation_state["prescriptions"].pop(0)  # Remove the first prescription
                     prescription_id = current_prescription["prescription_id"]
                     medication_name = current_prescription["details"]
 
-                    logger.debug(
-                        f"Activating reminders for prescription: {prescription_id}, medication: {medication_name}"
-                    )
-
+                    logger.debug(f"Activating reminders for prescription: {prescription_id}, medication: {medication_name}")
+                    
                     try:
-                        activated_reminders = await activate_reminders_for_prescription(
-                            prescription_id, db
-                        )
-                        reminder_times = ", ".join(
-                            [
-                                r.reminder_time.strftime("%I:%M %p")
-                                for r in activated_reminders
-                            ]
-                        )
+                        activated_reminders = await activate_reminders_for_prescription(prescription_id, db)
+                        reminder_times = ", ".join([r.reminder_time.strftime("%I:%M %p") for r in activated_reminders])
 
                         # Mark the prescription as inactive
-                        updated_prescription = await mark_prescription_inactive(
-                            db, prescription_id
-                        )
+                        updated_prescription = await mark_prescription_inactive(db, prescription_id)
+
                         if updated_prescription is None:
-                            logger.warning(
-                                f"Failed to mark prescription {prescription_id} as inactive"
-                            )
+                            logger.warning(f"Failed to mark prescription {prescription_id} as inactive")
                         else:
-                            logger.info(
-                                f"Prescription {prescription_id} marked as inactive"
-                            )
+                            logger.info(f"Prescription {prescription_id} marked as inactive")
 
-                        conversation_state["prescriptions"].pop(0)
-
-                        if conversation_state["prescriptions"]:
-                            next_medication = conversation_state["prescriptions"][0][
-                                "details"
-                            ]
-                            return ChatResponse(
-                                response=f"Reminders for {medication_name} have been activated for: {reminder_times}. "
-                                f"The prescription has been marked as inactive. "
-                                f"Would you like to activate reminders for the next prescription ({next_medication})? (Yes/No)"
-                            )
-                        else:
-                            conversation_state["stage"] = "general"
-                            return ChatResponse(
-                                response=f"Reminders for {medication_name} have been activated. You'll receive reminders at: {reminder_times}. "
-                                "The prescription has been marked as inactive. "
-                                "All prescriptions have been processed."
-                            )
+                        # Ask user if they want to change reminder times
+                        conversation_state["stage"] = "update_reminder_prompt"
+                        conversation_state["prescription_id"] = prescription_id
+                        return ChatResponse(
+                            response=f"Reminders for {medication_name} have been activated for: {reminder_times}. "
+                                    f"The prescription has been marked as inactive. "
+                                    f"Would you like to update the reminder times? (Yes/No)"
+                        )
                     except HTTPException as e:
                         conversation_state["stage"] = "general"
                         return ChatResponse(
                             response=f"I'm sorry, there was an issue activating your reminders for {medication_name}: {e.detail}",
                         )
                 else:
+                    # Check if there are more prescriptions to process
+                    if conversation_state["prescriptions"]:
+                        # Continue to the next prescription
+                        current_prescription = conversation_state["prescriptions"][0]
+                        medication_name = current_prescription["details"]
+                        return ChatResponse(
+                            response=f"Next prescription: {medication_name}. Would you like to activate reminders for this prescription? (Yes/No)"
+                        )
+                    else:
+                        # If no more prescriptions, go back to the general state
+                        conversation_state["stage"] = "general"
+                        return ChatResponse(
+                            response="All reminders have already been activated."
+                        )
+
+        # Stage 6: Ask if the user wants to update reminder times
+        elif conversation_state["stage"] == "update_reminder_prompt":
+            affirmative_responses = {"yes", "yeah", "yup", "sure", "ok", "alright", "go ahead"}
+            negative_responses = {"no", "nope", "not now", "nah", "never mind"}
+
+            if user_message.lower() in affirmative_responses:
+                # Ask the user for new reminder times
+                conversation_state["stage"] = "collect_new_reminder_times"
+                return ChatResponse(
+                    response="Please provide the new times for your reminders. You can specify them in the format 'HH:MM AM/PM', separated by commas. For example: '09:00 AM, 01:00 PM, 06:00 PM'."
+                )
+            elif user_message.lower() in negative_responses:
+                # Check if there are more prescriptions to process instead of going to general stage
+                if conversation_state["prescriptions"]:
+                    # Continue to the next prescription
+                    current_prescription = conversation_state["prescriptions"][0]
+                    medication_name = current_prescription["details"]
+                    conversation_state["stage"] = "activate_reminders"  # Set stage back to activate_reminders
+                    return ChatResponse(
+                        response=f"Next prescription: {medication_name}. Would you like to activate reminders for this prescription? (Yes/No)"
+                    )
+                else:
+                    # Only go to general stage if no more prescriptions
                     conversation_state["stage"] = "general"
                     return ChatResponse(
-                        response="All reminders have already been activated.",
+                        response="All prescriptions have been processed.",
                     )
-            elif user_message.lower() in negative_responses:
-                conversation_state["stage"] = "general"
-                return ChatResponse(
-                    response="Alright, I won't activate any more reminders for now. You can always ask me to activate them later.",
-                )
             else:
                 return ChatResponse(
-                    response="I didn't understand that. Please answer with 'Yes' or 'No' (or similar terms).",
+                    response="I didn't understand that. Please answer with 'Yes' or 'No'.",
                 )
+
+        # Stage 7: Collect and Update Reminder Times
+        elif conversation_state["stage"] == "collect_new_reminder_times":
+            try:
+                new_times_str = user_message.split(",")
+                new_times = []
+
+                for time_str in new_times_str:
+                    parsed_time = pendulum.parse(time_str.strip(), strict=False)
+                    new_times.append({"hour": parsed_time.hour, "minute": parsed_time.minute})
+
+                # Call function to update the reminder times
+                prescription_id = conversation_state.get("prescription_id")
+                if prescription_id:
+                    await update_reminder_times(prescription_id, new_times, db)
+                    
+                    # Manually format the times to display them
+                    formatted_times = [f"{time['hour']:02}:{time['minute']:02}" for time in new_times]
+                    
+                    # Check for more prescriptions instead of going to general stage
+                    if conversation_state["prescriptions"]:
+                        current_prescription = conversation_state["prescriptions"][0]
+                        medication_name = current_prescription["details"]
+                        conversation_state["stage"] = "activate_reminders"
+                        return ChatResponse(
+                            response=f"Reminder times have been updated to: {', '.join(formatted_times)}.\n\n"
+                                    f"Next prescription: {medication_name}. Would you like to activate reminders for this prescription? (Yes/No)"
+                        )
+                    else:
+                        conversation_state["stage"] = "general"
+                        return ChatResponse(
+                            response=f"Reminder times have been updated to: {', '.join(formatted_times)}.\n"
+                                    f"All prescriptions have been processed."
+                        )
+                else:
+                    conversation_state["stage"] = "general"
+                    return ChatResponse(response="Sorry, there was an issue finding your prescription.")
+            except Exception as e:
+                logger.error(f"Error parsing new reminder times: {e}")
+                return ChatResponse(response="There was an error processing the new times. Please try again using the format 'HH:MM AM/PM'.")
+
 
         # Default: Handle general conversation and suggest doctors if needed
         chatbot_response = await get_chatbot_response(user_message)
@@ -400,7 +426,7 @@ async def chat_with_bot(
             )
         elif chatbot_response.get("check_prescriptions"):
             conversation_state["stage"] = "check_inactive_appointments"
-            return await chat_with_bot(query, db)
+            return await chat_with_bot(query, db, current_user)
         else:
             return ChatResponse(
                 response=chatbot_response["response"]
@@ -410,9 +436,9 @@ async def chat_with_bot(
     except Exception as e:
         logger.error(f"Error during chatbot response: {e}")
         raise HTTPException(
-            status_code=500, detail="Failed to communicate with the chatbot."
+            status_code=500,
+            detail=ErrorMessages.CHATBOT_FAILED_COMMUNICATION.value,
         ) from e
-
 
 @router.get("/chat/reminders")
 async def get_reminders():
