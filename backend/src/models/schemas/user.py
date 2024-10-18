@@ -14,6 +14,7 @@ Imports:
 
 import re
 from datetime import date, datetime
+from typing import Optional
 
 from fastapi_pagination import Page
 from pydantic import UUID4, BaseModel, Field, field_validator
@@ -429,6 +430,28 @@ class DoctorResponse(BaseModel):
     first_name: str
     last_name: str
     specialization: str
+
+
+class PatientUpdate(BaseModel):
+    password: Optional[str]
+    first_name: Optional[str]
+    last_name: Optional[str]
+    phone_number: Optional[str]
+    dob: Optional[date]
+
+    class Config:
+        orm_mode = True
+
+
+class DoctorUpdate(BaseModel):
+    password: Optional[str]
+    first_name: Optional[str]
+    last_name: Optional[str]
+    specialization: Optional[str]
+    phone_number: Optional[str]
+
+    class Config:
+        orm_mode = True
 
 
 PagedDoctor = Page[Doctor]

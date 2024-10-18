@@ -13,6 +13,7 @@ Includes support for logging and password hashing.
 """
 
 from typing import Optional
+from uuid import UUID
 
 import pendulum
 from sqlalchemy import func
@@ -22,7 +23,13 @@ from src.config.settings.logger_config import logger
 from src.models.db.user import Admin as AdminModel
 from src.models.db.user import Doctor as DoctorModel
 from src.models.db.user import Patient as PatientModel
-from src.models.schemas.user import AdminCreate, DoctorCreate, PatientCreate
+from src.models.schemas.user import (
+    AdminCreate,
+    DoctorCreate,
+    DoctorUpdate,
+    PatientCreate,
+    PatientUpdate,
+)
 from src.securities.hashing.hash import get_password_hash, verify_password
 
 
@@ -61,6 +68,56 @@ async def create_patient(db: AsyncSession, patient: PatientCreate) -> PatientMod
         raise
 
 
+async def update_patient(
+    db: AsyncSession, patient_id: UUID, patient_update: PatientUpdate
+) -> PatientModel:
+    """
+    Updates an existing patient record in the database.
+
+    Args:
+        db (AsyncSession): The database session for async operations.
+        patient_id (int): The ID of the patient to update.
+        patient_update (PatientUpdate): The patient data to update.
+
+    Returns:
+        PatientModel: The updated patient model instance.
+
+    Raises:
+        PatientNotFoundError: If the patient is not found in the database.
+        Exception: If there is any other error during the update process.
+    """
+    try:
+        db_patient = await db.get(PatientModel, patient_id)
+        if not db_patient:
+            logger.warning(f"Patient with ID {patient_id} not found")
+            raise ValueError("Patient not found")
+
+        if patient_update.password:
+            db_patient.hashed_password = await get_password_hash(
+                patient_update.password
+            )
+        if patient_update.first_name:
+            db_patient.first_name = patient_update.first_name
+        if patient_update.last_name:
+            db_patient.last_name = patient_update.last_name
+        if patient_update.phone_number:
+            db_patient.phone_number = patient_update.phone_number
+        if patient_update.dob:
+            db_patient.dob = patient_update.dob
+
+        # Commit the changes
+        await db.commit()
+        await db.refresh(db_patient)
+        logger.info(f"Patient with ID {patient_id} updated successfully")
+        return db_patient
+    except ValueError as e:
+        logger.error(f" Pateint update error: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error updating patient with ID {patient_id}: {e}")
+        raise
+
+
 async def create_doctor(db: AsyncSession, doctor: DoctorCreate) -> DoctorModel:
     """
     Creates a new doctor record in the database.
@@ -93,6 +150,54 @@ async def create_doctor(db: AsyncSession, doctor: DoctorCreate) -> DoctorModel:
         return db_doctor
     except Exception as e:
         logger.error(f"Error creating doctor: {e}")
+        raise
+
+
+async def update_doctor(
+    db: AsyncSession, doctor_id: UUID, doctor_update: DoctorUpdate
+) -> DoctorModel:
+    """
+    Updates an existing doctor record in the database.
+
+    Args:
+        db (AsyncSession): The database session for async operations.
+        doctor_id (UUID): The ID of the doctor to update.
+        doctor_update (DoctorUpdate): The doctor data to update.
+
+    Returns:
+        DoctorModel: The updated doctor model instance.
+
+    Raises:
+        DoctorNotFoundError: If the doctor is not found in the database.
+        Exception: If there is any other error during the update process.
+    """
+    try:
+        db_doctor = await db.get(DoctorModel, doctor_id)
+        if not db_doctor:
+            logger.warning(f"Doctor with ID {doctor_id} not found")
+            raise ValueError("Doctor not found")
+
+        if doctor_update.password:
+            db_doctor.hashed_password = await get_password_hash(doctor_update.password)
+        if doctor_update.first_name:
+            db_doctor.first_name = doctor_update.first_name
+        if doctor_update.last_name:
+            db_doctor.last_name = doctor_update.last_name
+        if doctor_update.phone_number:
+            db_doctor.phone_number = doctor_update.phone_number
+        if doctor_update.specialization:
+            db_doctor.specialization = doctor_update.specialization
+
+        # Commit the changes
+        await db.commit()
+        await db.refresh(db_doctor)
+        logger.info(f"Doctor with ID {doctor_id} updated successfully")
+        return db_doctor
+    except ValueError as e:
+        logger.error(f"Doctor update error: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error updating doctor with ID {doctor_id}: {e}")
         raise
 
 
