@@ -14,6 +14,8 @@ class ErrorMessages(Enum):
         "No doctors found for the given specialization: '{}'"
     )
     NO_PATIENT_FOUND = "Patient not found with ID: {}"
+    PATIENT_UPDATE_ERROR = "Error in updating the patient"
+    DOCTOR_UPDATE_ERROR = "Error in updating the doctor"
     NO_DOCTOR_FOUND = "Doctor not found"
     TIMESLOT_CREATION_ERROR = "Error creating time slot"
     NO_AVAILABLE_TIMESLOTS = "No available time slots found for the doctor"

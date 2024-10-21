@@ -33,9 +33,13 @@ Functions:
     - `create_access_token`: Generates a JWT token after successful authentication.
 """
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings.logger_config import logger
+from src.models.db.user import Doctor as DoctorModel
+from src.models.db.user import Patient as PatientModel
 from src.models.schemas.auth_schema import LoginRequest, Token
 from src.models.schemas.error_response import ErrorResponse
 from src.models.schemas.user import (
@@ -43,8 +47,10 @@ from src.models.schemas.user import (
     AdminCreate,
     Doctor,
     DoctorCreate,
+    DoctorUpdate,
     Patient,
     PatientCreate,
+    PatientUpdate,
 )
 from src.repository.crud.user import (
     authenticate_admin,
@@ -56,9 +62,13 @@ from src.repository.crud.user import (
     get_doctor_by_id_from_db,
     get_doctors_by_specialization_from_db,
     get_patient_by_id_from_db,
+    update_doctor,
+    update_patient,
 )
 from src.repository.database import get_db
 from src.securities.authorization.jwt import create_access_token
+from src.securities.verification.credentials import get_current_user
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -94,7 +104,57 @@ async def register_patient(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Patient already exists",
+                detail=ErrorMessages.PATIENT_EXISTS.value,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ).dict(),
+        ) from e
+
+
+@router.put(
+    "/update/patient/{patient_id}",
+    response_model=Patient,
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def update_patient_endpoint(
+    patient_id: UUID,
+    patient_update: PatientUpdate,
+    current_user: PatientModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Patient:
+    """
+    Update an existing patient's details.
+
+    Args:
+        patient_id (int): The ID of the patient to update.
+        patient_update (PatientUpdate): The patient data to update.
+        db (AsyncSession): The database session.
+
+    Returns:
+        Patient: The updated patient data.
+
+    Raises:
+        HTTPException: If patient is not found or an error occurs during update.
+    """
+    try:
+        logger.info(f"Attempting to update patient with ID: {patient_id}")
+        updated_patient = await update_patient(db, current_user.user_id, patient_update)
+        logger.info(f"Patient updated successfully with ID: {updated_patient.user_id}")
+        return Patient.from_orm(updated_patient)
+    except ValueError as e:
+        logger.error(f"Patient with ID {current_user.user_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                detail=ErrorMessages.PATIENT_NOT_FOUND.value,
+                status_code=status.HTTP_404_NOT_FOUND,
+            ).dict(),
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during patient update: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                detail=ErrorMessages.PATIENT_UPDATE_ERROR.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -131,7 +191,57 @@ async def register_doctor(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Doctor already exists",
+                detail=ErrorMessages.DOCTOR_EXISTS.value,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ).dict(),
+        ) from e
+
+
+@router.put(
+    "/update/doctor/{doctor_id}",
+    response_model=Doctor,
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def update_doctor_endpoint(
+    doctor_id: UUID,
+    doctor_update: DoctorUpdate,
+    current_user: DoctorModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Doctor:
+    """
+    Update an existing doctor's details.
+
+    Args:
+        doctor_id (UUID): The ID of the doctor to update.
+        doctor_update (DoctorUpdate): The doctor data to update.
+        db (AsyncSession): The database session.
+
+    Returns:
+        Doctor: The updated doctor data.
+
+    Raises:
+        HTTPException: If doctor is not found or an error occurs during update.
+    """
+    try:
+        logger.info(f"Attempting to update doctor with ID: {doctor_id}")
+        updated_doctor = await update_doctor(db, current_user.user_id, doctor_update)
+        logger.info(f"Doctor updated successfully with ID: {updated_doctor.user_id}")
+        return Doctor.from_orm(updated_doctor)
+    except ValueError as e:
+        logger.error(f"Doctor with ID {current_user.user_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                detail=ErrorMessages.NO_DOCTOR_FOUND.value,
+                status_code=status.HTTP_404_NOT_FOUND,
+            ).dict(),
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during doctor update: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                detail=ErrorMessages.DOCTOR_UPDATE_ERROR.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -168,7 +278,7 @@ async def register_admin(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Error creating admin",
+                detail=ErrorMessages.ADMIN_EXISTS.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -219,7 +329,7 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)) ->
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
-                    detail="Invalid role specified.",
+                    detail=ErrorMessages.INVALID_ROLE.value,
                     status_code=status.HTTP_400_BAD_REQUEST,
                 ).dict(),
             )
@@ -230,7 +340,7 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)) ->
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=ErrorResponse(
-                    detail="Invalid credentials",
+                    detail=ErrorMessages.INVALID_CREDENTIALS.value,
                     status_code=status.HTTP_401_UNAUTHORIZED,
                 ).dict(),
             )
@@ -261,7 +371,7 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)) ->
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Error logging in",
+                detail=ErrorMessages.LOGIN_ERROR.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -295,50 +405,13 @@ async def get_doctors_by_specialization(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                detail=f"No doctors found for the given specialization: '{specialization}'",
+                detail=ErrorMessages.NO_DOCTORS_FOUND_FOR_SPECIALIZATION.value.format(
+                    specialization
+                ),
                 status_code=status.HTTP_404_NOT_FOUND,
             ).dict(),
         )
     return [Doctor.from_orm(doctor) for doctor in doctors]
-
-
-@router.get(
-    "/patients/{patient_id}",
-    response_model=Patient,
-    responses={404: {"model": ErrorResponse}},
-)
-async def get_patient_by_id(
-    patient_id: str, db: AsyncSession = Depends(get_db)
-) -> Patient:
-    """
-    Get a patient by ID.
-
-    Args:
-        patient_id (str): The ID of the patient.
-        db (AsyncSession): The database session.
-
-    Returns:
-        Patient: The patient with the specified ID.
-
-    Raises:
-        HTTPException: If the patient is not found.
-    """
-    logger.info(f"Fetching patient with ID: {patient_id}")
-
-    patient = await get_patient_by_id_from_db(db, patient_id)
-
-    if not patient:
-        logger.warning(f"Patient with ID {patient_id} not found.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                detail="Patient not found",
-                status_code=status.HTTP_404_NOT_FOUND,
-            ).dict(),
-        )
-
-    logger.info(f"Patient with ID {patient_id} found: {patient}")
-    return Patient.from_orm(patient)
 
 
 @router.get(
@@ -371,10 +444,49 @@ async def get_doctor_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                detail="Doctor not found",
+                detail=ErrorMessages.NO_DOCTOR_FOUND.value.format(doctor_id),
                 status_code=status.HTTP_404_NOT_FOUND,
             ).dict(),
         )
 
     logger.info(f"Doctor with ID {doctor_id} found: {doctor}")
     return Doctor.from_orm(doctor)
+
+
+@router.get(
+    "/patients/{patient_id}",
+    response_model=Patient,
+    responses={404: {"model": ErrorResponse}},
+)
+async def get_patient_by_id(
+    patient_id: str, db: AsyncSession = Depends(get_db)
+) -> Patient:
+    """
+    Get a patient by ID.
+
+    Args:
+        patient_id (str): The ID of the patient.
+        db (AsyncSession): The database session.
+
+    Returns:
+        Patient: The patient with the specified ID.
+
+    Raises:
+        HTTPException: If the patient is not found.
+    """
+    logger.info(f"Fetching patient with ID: {patient_id}")
+
+    patient = await get_patient_by_id_from_db(db, patient_id)
+
+    if not patient:
+        logger.warning(f"Patient with ID {patient_id} not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                detail=ErrorMessages.NO_PATIENT_FOUND.value.format(patient_id),
+                status_code=status.HTTP_404_NOT_FOUND,
+            ).dict(),
+        )
+
+    logger.info(f"Patient with ID {patient_id} found: {patient}")
+    return Patient.from_orm(patient)
