@@ -28,7 +28,9 @@ def initialize_backend_application() -> FastAPI:
         Function for application startup log and database initialization
         """
         logger.info("Application startup")
+
         await create_tables()
+
         start_scheduler()
 
     @app.on_event("shutdown")
