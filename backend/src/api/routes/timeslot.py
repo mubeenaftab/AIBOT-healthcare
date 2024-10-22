@@ -27,10 +27,11 @@ from src.models.schemas.timeslot import TimeSlot, TimeSlotCreate, TimeSlotRespon
 from src.repository.crud.timeslot import (
     create_time_slot,
     get_available_time_slots_from_db,
-    get_timeslot_by_doctor_id_from_db,
+    get_timeslots_by_doctor_patient,
 )
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -105,12 +106,12 @@ async def get_available_time_slots(
 
 
 @router.get(
-    "/timeslots/{doctor_id}",
+    "/timeslots/{doctor_id}/{patient_id}",
     response_model=TimeSlotResponse,
     responses={404: {"model": ErrorResponse}},
 )
-async def get_timeslot_by_doctor_id(
-    doctor_id: str, db: AsyncSession = Depends(get_db)
+async def get_timeslots(
+    doctor_id: str, patient_id: str, db: AsyncSession = Depends(get_db)
 ) -> TimeSlotResponse:
     """
     Get a timeslot by doctor ID.
@@ -125,12 +126,12 @@ async def get_timeslot_by_doctor_id(
     Raises:
         HTTPException: If the timeslot is not found.
     """
-    timeslot = await get_timeslot_by_doctor_id_from_db(db, doctor_id)
+    timeslot = await get_timeslots_by_doctor_patient(db, doctor_id, patient_id)
 
     if not timeslot:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Timeslot not found",
+            detail=ErrorMessages.TIMESLOT_NOT_FOUND.value.format(doctor_id, patient_id),
         )
 
     return TimeSlotResponse.from_orm(timeslot)

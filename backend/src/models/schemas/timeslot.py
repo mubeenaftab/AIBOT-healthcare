@@ -51,9 +51,12 @@ class TimeSlot(TimeSlotBase):
 
 class TimeSlotResponse(BaseModel):
     doctor_id: UUID
+    patient_id: UUID
     start_time: time = Field(..., description="Start time of the time slot")
     end_time: time = Field(..., description="End time of the time slot")
-    status: str = Field(..., description="Status of the time slot (available, booked, etc.)")
+    status: str = Field(
+        ..., description="Status of the time slot (available, booked, etc.)"
+    )
     time_slot_id: UUID
 
     class Config:

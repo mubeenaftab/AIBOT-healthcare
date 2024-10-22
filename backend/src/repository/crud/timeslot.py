@@ -58,6 +58,37 @@ async def create_time_slot(
         raise
 
 
+async def update_time_slot_with_patient(
+    db: AsyncSession, time_slot_id: UUID, patient_id: UUID
+) -> TimeSlotModel:
+    """
+    Update a time slot with patient information when booked.
+
+    Args:
+        db: The database session
+        time_slot_id: ID of the time slot to update
+        patient_id: ID of the patient booking the slot
+        status: New status for the time slot
+
+    Returns:
+        Updated time slot model
+    """
+    try:
+        stmt = (
+            update(TimeSlotModel)
+            .where(TimeSlotModel.time_slot_id == time_slot_id)
+            .values(patient_id=patient_id)
+            .returning(TimeSlotModel)
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.scalar_one()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating time slot: {e}")
+        raise
+
+
 async def get_available_time_slots_from_db(
     db: AsyncSession, doctor_id: UUID
 ) -> list[TimeSlotModel]:
@@ -120,23 +151,28 @@ async def update_time_slot_status(
     await db.commit()
 
 
-async def get_timeslot_by_doctor_id_from_db(db: AsyncSession, doctor_id: str):
+async def get_timeslots_by_doctor_patient(
+    db: AsyncSession, doctor_id: str, patient_id: str
+):
     """
-    Retrieve the first timeslot associated with a specific doctor from the database.
+    Retrieve the first timeslot associated with a specific doctor and patient from the database.
 
     This function queries the `TimeSlotModel` table in the database to find a timeslot
-    that matches the given `doctor_id`. It returns the first matching timeslot if found,
-    or `None` if no timeslot is associated with the doctor.
+    that matches both the given `doctor_id` and `patient_id`. It returns the first matching
+    timeslot if found, or `None` if no timeslot is associated with the doctor and patient.
 
     Args:
         db (AsyncSession): The database session to execute the query.
         doctor_id (str): The ID of the doctor to filter timeslots.
+        patient_id (str): The ID of the patient to filter timeslots.
 
     Returns:
         TimeSlotModel or None: The first matching timeslot object or `None` if not found.
     """
     result = await db.execute(
-        select(TimeSlotModel).filter(TimeSlotModel.doctor_id == doctor_id)
+        select(TimeSlotModel)
+        .filter(TimeSlotModel.doctor_id == doctor_id)
+        .filter(TimeSlotModel.patient_id == patient_id)
     )
     return result.scalars().first()
 
