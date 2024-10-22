@@ -300,9 +300,7 @@ async def chat_with_bot(
 
             if user_message.lower() in affirmative_responses:
                 if conversation_state["prescriptions"]:
-                    current_prescription = conversation_state["prescriptions"].pop(
-                        0
-                    )  # Remove the first prescription
+                    current_prescription = conversation_state["prescriptions"].pop(0)
                     prescription_id = current_prescription["prescription_id"]
                     medication_name = current_prescription["details"]
 
@@ -311,15 +309,18 @@ async def chat_with_bot(
                     )
 
                     try:
-                        activated_reminders = await activate_reminders_for_prescription(
-                            prescription_id, db
-                        )
-                        reminder_times = ", ".join(
-                            [
-                                r.reminder_time.strftime("%I:%M %p")
-                                for r in activated_reminders
-                            ]
-                        )
+
+                        activated_reminders = await activate_reminders_for_prescription(prescription_id, db)
+                        
+                        # Extract reminder times without sorting, just taking the first set of times
+                        unique_reminder_times = []
+                        for reminder in activated_reminders:
+                            time_str = reminder.reminder_time.strftime("%I:%M %p")
+                            if time_str not in unique_reminder_times:
+                                unique_reminder_times.append(time_str)
+
+                        reminder_times = ", ".join(unique_reminder_times)
+
 
                         # Mark the prescription as inactive
                         updated_prescription = await mark_prescription_inactive(
