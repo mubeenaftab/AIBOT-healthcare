@@ -13,7 +13,7 @@ from src.models.db.user import Patient as PatientModel
 from src.models.schemas.appointment import AppointmentCreate
 from src.models.schemas.chatbot import ChatQuery, ChatResponse
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.user import DoctorResponse
+from src.models.schemas.doctor import DoctorResponse
 from src.repository.crud.appointment import get_inactive_appointment
 from src.repository.crud.chat import get_chatbot_response, reminder_queue
 from src.repository.crud.prescription import (

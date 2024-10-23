@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from src.models.schemas.user import DoctorResponse
+from src.models.schemas.doctor import DoctorResponse
 
 
 class ChatQuery(BaseModel):

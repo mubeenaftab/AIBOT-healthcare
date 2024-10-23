@@ -5,11 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings.logger_config import logger
 from src.models.db.user import Patient as PatientModel
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.user import (
-    Patient,
-    PatientCreate,
-    PatientUpdate,
-)
+from src.models.schemas.patient import Patient, PatientCreate, PatientUpdate
 from src.repository.crud.patient import (
     create_patient,
     get_patient_by_id_from_db,

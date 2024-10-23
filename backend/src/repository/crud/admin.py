@@ -27,7 +27,9 @@ from src.models.db.user import Admin as AdminModel
 from src.models.db.user import Doctor as DoctorModel
 from src.models.db.user import Patient as PatientModel
 from src.models.schemas.appointment import PagedAppointment
-from src.models.schemas.user import AdminCreate, PagedDoctor, PagedPatient
+from src.models.schemas.admin import AdminCreate
+from src.models.schemas.doctor import PagedDoctor
+from src.models.schemas.patient import PagedPatient
 from src.securities.hashing.hash import get_password_hash, verify_password
 
 
@@ -50,6 +52,8 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> AdminModel:
         db_admin = AdminModel(
             username=admin.username,
             hashed_password=hashed_password,
+            email=admin.email,
+            city=admin.city,
             timestamp=pendulum.now().naive(),
         )
         db.add(db_admin)

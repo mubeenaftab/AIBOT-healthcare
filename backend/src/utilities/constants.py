@@ -132,3 +132,19 @@ class ChatbotResponses:
     ALL_PRESCRIPTIONS_PROCESSED = "Reminder times have been updated to: {formatted_times}.\nAll prescriptions have been processed."
     FINDING_PRESCRIPTION_ERROR = "Sorry, there was an issue finding your prescription."
     PROCESSING_ERROR = "There was an error processing the new times. Please try again using the format 'HH:MM AM/PM'."
+
+
+class GenderEnum(Enum):
+    MALE = "Male"
+    FEMALE = "Female"
+    OTHER = "Other"
+
+class BloodGroupEnum(Enum):
+    A_POS = "A+"
+    A_NEG = "A-"
+    B_POS = "B+"
+    B_NEG = "B-"
+    AB_POS = "AB+"
+    AB_NEG = "AB-"
+    O_POS = "O+"
+    O_NEG = "O-"

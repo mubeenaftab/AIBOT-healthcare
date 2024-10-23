@@ -7,17 +7,15 @@ The module includes schemas for patients, doctors, and admins.
 
 Imports:
     - re: For regular expression operations.
-    - date, datetime: For handling date and time fields.
+    - datetime: For handling date and time fields.
     - Page from fastapi_pagination: For paginated responses.
     - UUID4, BaseModel, Field, field_validator from pydantic: For data validation and serialization.
 """
 
 import re
-from datetime import date, datetime
-from typing import Optional
+from datetime import datetime
 
-from fastapi_pagination import Page
-from pydantic import UUID4, BaseModel, Field, field_validator
+from pydantic import UUID4, BaseModel, Field, validator
 
 
 class UserBase(BaseModel):
@@ -28,16 +26,18 @@ class UserBase(BaseModel):
         username (str): The username of the user. Must be 3-80 characters long,
                         start with a letter, and contain only letters, numbers,
                         underscores, and hyphens.
+        city (str): The city where the user lives, containing only letters and spaces.
     """
 
     username: str = Field(
-        ...,
-        min_length=3,
-        max_length=80,
-        description="Username must be between 3 and 80 characters long",
+        ..., min_length=3, max_length=80, description="Username must be between 3 and 80 characters long"
+    )
+    email: str = Field(..., description="A valid email address")
+    city: str = Field(
+        ..., description="City must contain only letters and spaces"
     )
 
-    @field_validator("username")
+    @validator("username")
     @classmethod
     def validate_username(cls, value: str) -> str:
         """
@@ -60,6 +60,44 @@ class UserBase(BaseModel):
                 "letters, numbers, underscores, and hyphens"
             )
         return value
+    
+    @validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        """
+        Validate the email format.
+
+        Args:
+            value (str): The email address to validate.
+
+        Returns:
+            str: The validated email address.
+
+        Raises:
+            ValueError: If the email format is invalid.
+        """
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", value):
+            raise ValueError("Invalid email format")
+        return value
+
+    @validator("city")
+    @classmethod
+    def validate_city(cls, value: str) -> str:
+        """
+        Validate that the city contains only letters and spaces.
+
+        Args:
+            value (str): The city name to validate.
+
+        Returns:
+            str: The validated city name.
+
+        Raises:
+            ValueError: If the city contains invalid characters.
+        """
+        if not re.match(r"^[a-zA-Z\s]+$", value):
+            raise ValueError("City must only contain letters and spaces")
+        return value
 
 
 class UserCreate(UserBase):
@@ -73,7 +111,7 @@ class UserCreate(UserBase):
 
     password: str = Field(..., min_length=8)
 
-    @field_validator("password")
+    @validator("password")
     @classmethod
     def validate_password(cls, password: str) -> str:
         """
@@ -98,305 +136,6 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one special character")
         return password
 
-
-class PatientCreate(UserCreate):
-    """
-    Schema for creating a new patient user.
-
-    Attributes:
-        first_name (str): First name of the patient (2-50 characters).
-        last_name (str): Last name of the patient (2-50 characters).
-        phone_number (str): Phone number of the patient (must be a valid Pakistani number).
-        dob (date): Date of birth of the patient.
-    """
-
-    first_name: str = Field(
-        ...,
-        min_length=2,
-        max_length=50,
-        description="First name of the patient (2-50 characters)",
-    )
-    last_name: str = Field(
-        ...,
-        min_length=2,
-        max_length=50,
-        description="Last name of the patient (2-50 characters)",
-    )
-    phone_number: str = Field(...)
-    dob: date = Field(..., description="Date of birth of the patient")
-
-    @field_validator("first_name", "last_name")
-    @classmethod
-    def validate_name(cls, value: str) -> str:
-        """
-        Validate that the name does not start with a number.
-
-        Args:
-            value (str): The name to validate.
-
-        Returns:
-            str: The validated name.
-
-        Raises:
-            ValueError: If the name starts with a number.
-        """
-        if value[0].isdigit():
-            raise ValueError("Name cannot start with a number")
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value: str) -> str:
-        """
-        Validate that the phone number is a valid Pakistani number.
-
-        Args:
-            value (str): The phone number to validate.
-
-        Returns:
-            str: The validated phone number.
-
-        Raises:
-            ValueError: If the phone number is invalid.
-        """
-        if not value.startswith("03") or len(value) != 11 or not value.isdigit():
-            raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' "
-                "and exactly 11 digits long"
-            )
-        return value
-
-
-class DoctorCreate(UserCreate):
-    """
-    Schema for creating a new doctor user.
-
-    Attributes:
-        first_name (str): First name of the doctor (2-50 characters).
-        last_name (str): Last name of the doctor (2-50 characters).
-        specialization (str): Doctor's specialization (3-100 characters).
-        phone_number (str): Phone number of the doctor (must be a valid Pakistani number).
-    """
-
-    first_name: str = Field(
-        ...,
-        min_length=2,
-        max_length=50,
-        description="First name of the doctor (2-50 characters)",
-    )
-    last_name: str = Field(
-        ...,
-        min_length=2,
-        max_length=50,
-        description="Last name of the doctor (2-50 characters)",
-    )
-    specialization: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="Doctor's specialization (3-100 characters)",
-    )
-    phone_number: str = Field(...)
-
-    @field_validator("first_name", "last_name")
-    @classmethod
-    def validate_name(cls, value: str) -> str:
-        """
-        Validate that the name does not start with a number.
-
-        Args:
-            value (str): The name to validate.
-
-        Returns:
-            str: The validated name.
-
-        Raises:
-            ValueError: If the name starts with a number.
-        """
-        if value[0].isdigit():
-            raise ValueError("Name cannot start with a number")
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value: str) -> str:
-        """
-        Validate that the phone number is a valid Pakistani number.
-
-        Args:
-            value (str): The phone number to validate.
-
-        Returns:
-            str: The validated phone number.
-
-        Raises:
-            ValueError: If the phone number is invalid.
-        """
-        if not value.startswith("03") or len(value) != 11 or not value.isdigit():
-            raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' "
-                "and exactly 11 digits long"
-            )
-        return value
-
-
-class AdminCreate(UserCreate):
-    """
-    Schema for creating a new admin user.
-
-    This class inherits from UserCreate without adding any new fields.
-    It can be extended in the future if needed.
-    """
-
-    pass
-
-
-class Patient(UserBase):
-    """
-    Schema representing a patient user.
-
-    Attributes:
-        user_id (UUID4): The unique identifier for the patient user.
-        first_name (str): First name of the patient (2-50 characters).
-        last_name (str): Last name of the patient (2-50 characters).
-        phone_number (str): Phone number of the patient (must be a valid Pakistani number).
-        dob (date): Date of birth of the patient.
-    """
-
-    user_id: UUID4
-    first_name: str = Field(..., min_length=2, max_length=50)
-    last_name: str = Field(..., min_length=2, max_length=50)
-    phone_number: str = Field(...)
-    dob: date
-
-    @field_validator("first_name", "last_name")
-    @classmethod
-    def validate_name(cls, value: str) -> str:
-        """
-        Validate that the name does not start with a number.
-
-        Args:
-            value (str): The name to validate.
-
-        Returns:
-            str: The validated name.
-
-        Raises:
-            ValueError: If the name starts with a number.
-        """
-        if value[0].isdigit():
-            raise ValueError("Name cannot start with a number")
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value: str) -> str:
-        """
-        Validate that the phone number is a valid Pakistani number.
-
-        Args:
-            value (str): The phone number to validate.
-
-        Returns:
-            str: The validated phone number.
-
-        Raises:
-            ValueError: If the phone number is invalid.
-        """
-        if not value.startswith("03") or len(value) != 11 or not value.isdigit():
-            raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' "
-                "and exactly 11 digits long"
-            )
-        return value
-
-    class Config:
-        """Configuration for the Patient model."""
-
-        from_attributes = True
-
-
-class Doctor(UserBase):
-    """
-    Schema representing a doctor user.
-
-    Attributes:
-        user_id (UUID4): The unique identifier for the doctor user.
-        first_name (str): First name of the doctor (2-50 characters).
-        last_name (str): Last name of the doctor (2-50 characters).
-        specialization (str): Doctor's specialization (3-100 characters).
-        phone_number (str): Phone number of the doctor (must be a valid Pakistani number).
-    """
-
-    user_id: UUID4
-    first_name: str = Field(..., min_length=2, max_length=50)
-    last_name: str = Field(..., min_length=2, max_length=50)
-    specialization: str = Field(..., min_length=3, max_length=100)
-    phone_number: str = Field(...)
-
-    @field_validator("first_name", "last_name")
-    @classmethod
-    def validate_name(cls, value: str) -> str:
-        """
-        Validate that the name does not start with a number.
-
-        Args:
-            value (str): The name to validate.
-
-        Returns:
-            str: The validated name.
-
-        Raises:
-            ValueError: If the name starts with a number.
-        """
-        if value[0].isdigit():
-            raise ValueError("Name cannot start with a number")
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value: str) -> str:
-        """
-        Validate that the phone number is a valid Pakistani number.
-
-        Args:
-            value (str): The phone number to validate.
-
-        Returns:
-            str: The validated phone number.
-
-        Raises:
-            ValueError: If the phone number is invalid.
-        """
-        if not value.startswith("03") or len(value) != 11 or not value.isdigit():
-            raise ValueError(
-                "Phone number must be a valid Pakistani number starting with '03' "
-                "and exactly 11 digits long"
-            )
-        return value
-
-    class Config:
-        """Configuration for the Doctor model."""
-
-        from_attributes = True
-
-
-class Admin(UserBase):
-    """
-    Schema representing an admin user.
-
-    Attributes:
-        user_id (UUID4): The unique identifier for the admin user.
-    """
-
-    user_id: UUID4
-
-    class Config:
-        """Configuration for the Admin model."""
-
-        from_attributes = True
-
-
 class User(UserBase):
     """
     Schema for a user profile, extending the base user schema.
@@ -415,44 +154,3 @@ class User(UserBase):
         """Configuration for the User model."""
 
         from_attributes = True
-
-
-class DoctorResponse(BaseModel):
-    """
-    Schema for responding with doctor information.
-
-    Attributes:
-        first_name (str): First name of the doctor.
-        last_name (str): Last name of the doctor.
-        specialization (str): Doctor's specialization.
-    """
-
-    first_name: str
-    last_name: str
-    specialization: str
-
-
-class PatientUpdate(BaseModel):
-    password: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    phone_number: Optional[str]
-    dob: Optional[date]
-
-    class Config:
-        orm_mode = True
-
-
-class DoctorUpdate(BaseModel):
-    password: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    specialization: Optional[str]
-    phone_number: Optional[str]
-
-    class Config:
-        orm_mode = True
-
-
-PagedDoctor = Page[Doctor]
-PagedPatient = Page[Patient]

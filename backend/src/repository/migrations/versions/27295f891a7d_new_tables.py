@@ -1,8 +1,8 @@
-"""added patient_id in timeslot
+"""new tables
 
-Revision ID: 684ef0822724
+Revision ID: 27295f891a7d
 Revises: 
-Create Date: 2024-10-22 18:35:01.783050
+Create Date: 2024-10-23 14:24:30.851649
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '684ef0822724'
+revision = '27295f891a7d'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,7 +24,10 @@ def upgrade() -> None:
     sa.Column('hashed_password', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('timestamp', postgresql.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
-    sa.PrimaryKeyConstraint('user_id')
+    sa.Column('email', sa.String(), nullable=False),
+    sa.Column('city', sa.String(), nullable=True),
+    sa.PrimaryKeyConstraint('user_id'),
+    sa.UniqueConstraint('email')
     )
     op.create_index(op.f('ix_admins_username'), 'admins', ['username'], unique=True)
     op.create_table('doctors',
@@ -32,12 +35,18 @@ def upgrade() -> None:
     sa.Column('last_name', sa.String(), nullable=False),
     sa.Column('specialization', sa.String(), nullable=False),
     sa.Column('phone_number', sa.String(length=11), nullable=False),
+    sa.Column('gender', sa.String(length=6), nullable=False),
+    sa.Column('years_of_experience', sa.Integer(), nullable=False),
+    sa.Column('consultation_fee', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('username', sa.String(), nullable=False),
     sa.Column('hashed_password', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('timestamp', postgresql.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
+    sa.Column('email', sa.String(), nullable=False),
+    sa.Column('city', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('user_id'),
+    sa.UniqueConstraint('email'),
     sa.UniqueConstraint('phone_number')
     )
     op.create_index(op.f('ix_doctors_username'), 'doctors', ['username'], unique=True)
@@ -46,12 +55,18 @@ def upgrade() -> None:
     sa.Column('last_name', sa.String(), nullable=False),
     sa.Column('phone_number', sa.String(length=11), nullable=False),
     sa.Column('dob', sa.Date(), nullable=False),
+    sa.Column('gender', sa.String(length=6), nullable=False),
+    sa.Column('blood_group', sa.String(length=6), nullable=True),
+    sa.Column('emergency_contact', sa.String(length=11), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('username', sa.String(), nullable=False),
     sa.Column('hashed_password', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('timestamp', postgresql.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
+    sa.Column('email', sa.String(), nullable=False),
+    sa.Column('city', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('user_id'),
+    sa.UniqueConstraint('email'),
     sa.UniqueConstraint('phone_number')
     )
     op.create_index(op.f('ix_patients_username'), 'patients', ['username'], unique=True)
