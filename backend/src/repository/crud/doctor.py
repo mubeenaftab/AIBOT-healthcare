@@ -66,7 +66,6 @@ async def create_doctor(db: AsyncSession, doctor: DoctorCreate) -> DoctorModel:
         raise
 
 
-
 async def update_doctor(
     db: AsyncSession, doctor_id: UUID, doctor_update: DoctorUpdate
 ) -> DoctorModel:
