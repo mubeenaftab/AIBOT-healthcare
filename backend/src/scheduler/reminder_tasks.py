@@ -3,6 +3,7 @@ from typing import List
 import pendulum
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.future import select
+
 from src.config.settings.logger_config import logger
 from src.models.db.prescription import Prescription as PrescriptionModel
 from src.models.db.reminder import Reminder as ReminderModel
@@ -49,11 +50,9 @@ async def trigger_reminder_task() -> None:
 
                 medication_names: List[str] = []
                 for reminder in active_reminders:
-                    prescription = await db.get(
-                        PrescriptionModel, reminder.prescription_id
-                    )
+                    prescription = await db.get(PrescriptionModel, reminder.prescription_id)
                     medication_names.append(prescription.medication_name)
-
+                    
                     await db.delete(reminder)
 
                 if medication_names:

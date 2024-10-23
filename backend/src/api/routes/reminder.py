@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
 from src.config.settings.logger_config import logger
 from src.models.db.prescription import Prescription as PrescriptionModel
 from src.models.db.reminder import Reminder as ReminderModel
@@ -12,6 +11,7 @@ from src.models.schemas.error_response import ErrorResponse
 from src.models.schemas.reminder import Reminder
 from src.repository.crud.reminder import activate_reminders
 from src.repository.database import get_db
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -45,16 +45,34 @@ async def activate_reminders_for_prescription(
         prescription = await db.get(PrescriptionModel, prescription_id)
         if not prescription:
             logger.warning(f"No prescription found for ID: {prescription_id}")
-            raise HTTPException(status_code=404, detail=f"Prescription not found for ID: {prescription_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=ErrorResponse(
+                    detail=ErrorMessages.PRESCRIPTION_NOT_FOUND.value.format(
+                        prescription_id
+                    ),
+                    status_code=404,
+                ).dict(),
+            )
 
         # Fetch reminders associated with this prescription
-        reminders = await db.execute(select(ReminderModel).where(ReminderModel.prescription_id == prescription_id))
+        reminders = await db.execute(
+            select(ReminderModel).where(
+                ReminderModel.prescription_id == prescription_id
+            )
+        )
         reminders_list = reminders.scalars().all()
 
         if not reminders_list:
             logger.warning(f"No reminders found for prescription ID: {prescription_id}")
             raise HTTPException(
-                status_code=404, detail=f"No reminders found for this prescription ID: {prescription_id}"
+                status_code=404,
+                detail=ErrorResponse(
+                    detail=ErrorMessages.NO_REMINDERS_FOUND.value.format(
+                        prescription_id
+                    ),
+                    status_code=404,
+                ).dict(),
             )
 
         # Activate reminders and assign dates
@@ -69,5 +87,8 @@ async def activate_reminders_for_prescription(
         logger.error(f"Unexpected error occurred while activating reminder: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected error occurred while activating status of reminder",
+            detail=ErrorResponse(
+                detail=ErrorMessages.REMINDER_ACTIVATION_ERROR.value,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ).dict(),
         ) from e

@@ -8,7 +8,7 @@ Imports for integrating OpenAI and application configuration settings.
 
 import re
 from queue import Queue
-from typing import List
+from typing import Any, List, Optional
 
 from openai import OpenAI
 from src.config.settings.base import config_env
@@ -63,9 +63,7 @@ async def get_chatbot_response(user_message: str) -> dict:
         logger.info(f"Received response from OpenAI: {answer}")
 
         # First, check if the user explicitly requests a doctor or specialist
-        explicit_specialization = (
-            extract_specialization_from_user_message(user_message) or ""
-        ).strip()
+        explicit_specialization = (extract_specialization_from_user_message(user_message) or "").strip()
 
         if explicit_specialization:
             logger.info(
@@ -283,7 +281,7 @@ def extract_specialization_from_gpt(response: str) -> str:
     return "Can you provide more details about your symptoms? For example, is the pain sharp, dull, or radiating to other areas?"
 
 
-def extract_specialization_from_user_message(user_message: str) -> str:
+def extract_specialization_from_user_message(user_message: str) -> Optional[str]:
     """
     Extracts the medical specialization directly from the user's message if explicitly mentioned.
 
@@ -374,7 +372,6 @@ Here's how you should respond:
 5. Keep the message concise and clear.
 """
 
-
 async def generate_reminder_message(medication_names: List[str]) -> str:
     """
     Generate a reminder message using OpenAI's API for multiple medications.
@@ -392,7 +389,7 @@ async def generate_reminder_message(medication_names: List[str]) -> str:
     try:
         conversation_history = [
             {"role": "system", "content": REMINDER_SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
+            {"role": "user", "content": user_message}
         ]
 
         response = client.chat.completions.create(

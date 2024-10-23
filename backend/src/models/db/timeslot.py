@@ -13,11 +13,11 @@ Imports for defining database models and relationships using SQLAlchemy.
 """
 
 import uuid
+from typing import Optional
 
 from sqlalchemy import ForeignKey, String, Time
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from src.repository.database import Base
 
 
@@ -35,8 +35,15 @@ class TimeSlot(Base):
 
     __tablename__ = "time_slot"
 
-    time_slot_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    doctor_id: Mapped[UUID] = mapped_column(ForeignKey("doctors.user_id"), nullable=False)
+    time_slot_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    doctor_id: Mapped[UUID] = mapped_column(
+        ForeignKey("doctors.user_id"), nullable=False
+    )
+    patient_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("patients.user_id"), nullable=True
+    )
     start_time: Mapped[Time] = mapped_column(Time, nullable=False)
     end_time: Mapped[Time] = mapped_column(Time, nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)

@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
+
 from src.api.endpoints import router as api_endpoint_routers
 from src.config.settings.base import config_env
 from src.config.settings.logger_config import logger
@@ -28,7 +29,7 @@ def initialize_backend_application() -> FastAPI:
         Function for application startup log and database initialization
         """
         logger.info("Application startup")
-        await create_tables()
+        # await create_tables()
         start_scheduler()
 
     @app.on_event("shutdown")

@@ -16,7 +16,7 @@ from typing import Optional
 from uuid import UUID
 
 import pendulum
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.config.settings.logger_config import logger
@@ -31,6 +31,7 @@ from src.models.schemas.user import (
     PatientUpdate,
 )
 from src.securities.hashing.hash import get_password_hash, verify_password
+from src.utilities.specialization_mapper import SpecializationMapper
 
 
 async def create_patient(db: AsyncSession, patient: PatientCreate) -> PatientModel:
@@ -343,25 +344,46 @@ async def authenticate_admin(
 
 
 async def get_doctors_by_specialization_from_db(
-    db: AsyncSession, specialization: str
+    db: AsyncSession,
+    specialization: str
 ) -> list[DoctorModel]:
     """
-    Fetch doctors by specialization from the database.
+    Fetch doctors by specialization from the database using flexible matching.
 
     Args:
         db (AsyncSession): The database session.
         specialization (str): The specialization to filter doctors by.
 
     Returns:
-        List[DoctorModel]: List of doctors with the given specialization.
+        List[DoctorModel]: List of doctors with matching specializations.
     """
-    result = await db.execute(
-        select(DoctorModel).where(
-            func.lower(func.trim(DoctorModel.specialization))
-            == func.lower(specialization.strip())
+    try:
+        # Initialize the specialization mapper
+        mapper = SpecializationMapper()
+        
+        # Get all possible matching specializations
+        matching_specializations = mapper.find_matching_specializations(specialization)
+        
+        logger.info(f"Searching for doctors with specializations matching: {matching_specializations}")
+        
+        # Create a query that matches any of the possible specializations
+        query = select(DoctorModel).where(
+            or_(*[
+                func.lower(func.trim(DoctorModel.specialization)).like(f"%{spec.lower().strip()}%")
+                for spec in matching_specializations
+            ])
         )
-    )
-    return result.scalars().all()
+        
+        result = await db.execute(query)
+        doctors = result.scalars().all()
+        
+        logger.info(f"Found {len(doctors)} matching doctors for specialization '{specialization}'")
+        return doctors
+        
+    except Exception as e:
+        logger.error(f"Error fetching doctors by specialization: {e}")
+        raise
+
 
 
 async def get_doctor_by_id_from_db(db: AsyncSession, doctor_id: str) -> DoctorModel:

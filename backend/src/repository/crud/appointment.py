@@ -1,12 +1,14 @@
 """
 Imports for handling appointment functionality in the FastAPI application.
 Includes database models and schemas for appointment management.
+
 - AsyncSession: Asynchronous database session management for SQLAlchemy.
 - AppointmentModel: SQLAlchemy model representing the Appointment entity.
 - AppointmentCreate: Pydantic schema for creating new appointments.
 """
 
 from uuid import UUID
+
 
 from fastapi_pagination import Params
 from fastapi_pagination.ext.sqlalchemy import paginate
@@ -23,9 +25,11 @@ async def create_appointment(
 ) -> AppointmentModel:
     """
     Create an appointment in the database.
+
     Args:
         db (AsyncSession): The database session.
         appointment_data (AppointmentCreate): The appointment data.
+
     Returns:
         AppointmentModel: The newly created appointment.
     """
@@ -41,15 +45,19 @@ async def create_appointment(
     return appointment
 
 
+
 async def fetch_doctor_appointments(
     db: AsyncSession, doctor_id: UUID, params: Params
 ) -> PagedAppointment:
+
     """
     Fetch paginated appointments for a specific doctor.
+
     Args:
         db (AsyncSession): The database session.
         doctor_id (UUID): The doctor's unique identifier.
         params (Params): Pagination parameters.
+
     Returns:
         PagedAppointment: A paginated result containing appointment objects.
     """
@@ -57,6 +65,7 @@ async def fetch_doctor_appointments(
         query = select(AppointmentModel).where(AppointmentModel.doctor_id == doctor_id)
         query = query.order_by(AppointmentModel.appointment_date)
         result = await paginate(db, query, params)
+
         logger.info(
             f"Total appointments retrieved for doctor {doctor_id}: {len(result.items)}"
         )
@@ -66,6 +75,7 @@ async def fetch_doctor_appointments(
         raise
 
 
+
 async def mark_appointment_as_inactive_service(
     db: AsyncSession, appointment_id: UUID
 ) -> dict:
@@ -73,9 +83,11 @@ async def mark_appointment_as_inactive_service(
     Mark an appointment as inactive by setting its `is_active` field to False.
     After marking the appointment as inactive, delete the oldest associated time slot
     where the patient and doctor IDs match.
+
     Args:
         db (AsyncSession): The database session.
         appointment_id (UUID): The ID of the appointment to mark as inactive.
+
     Returns:
         dict: A message indicating success.
     """
@@ -85,26 +97,55 @@ async def mark_appointment_as_inactive_service(
         )
     )
     appointment = result.scalars().first()
+
     if not appointment:
         raise ValueError(f"Appointment with ID {appointment_id} not found.")
+
     appointment.is_active = False
     await db.commit()
     await db.refresh(appointment)
+
     await delete_oldest_timeslot_by_doctor_and_patient(db, appointment)
+
     return {"appointment_id": str(appointment.appointment_id), "status": "inactive"}
+
+async def get_inactive_appointment(db: AsyncSession, patient_id: int) -> AppointmentModel | None:
+    """
+    Retrieve the most recent inactive appointment for the specified patient.
+
+    Args:
+        db (AsyncSession): The database session to execute queries.
+        patient_id (int): The ID of the patient.
+
+    Returns:
+        AppointmentModel | None: The inactive appointment if found, otherwise None.
+    """
+    inactive_appointments = await db.execute(
+        select(AppointmentModel)
+        .where(AppointmentModel.patient_id == patient_id)
+        .where(AppointmentModel.is_active.is_(False))
+        .order_by(AppointmentModel.appointment_date.desc())
+    )
+    inactive_appointment = inactive_appointments.scalars().first()
+    logger.debug(f"inactive_appointment: {inactive_appointment}")
+    return inactive_appointment
 
 
 async def fetch_appointment_by_id(
     db: AsyncSession, appointment_id: UUID
 ) -> AppointmentModel:
+
     """
     Fetch an appointment by its ID.
+
     Args:
         db (AsyncSession): The database session.
         appointment_id (UUID): The ID of the appointment to fetch.
+
     Returns:
         AppointmentModel: The fetched appointment, if found.
     """
+
     result = await db.execute(
         select(AppointmentModel).where(
             AppointmentModel.appointment_id == appointment_id

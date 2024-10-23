@@ -2,11 +2,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.config.settings.logger_config import logger
 from src.models.db.user import Doctor
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.prescription import Prescription, PrescriptionCreate, PrescriptionUpdate
+from src.models.schemas.prescription import (
+    Prescription,
+    PrescriptionCreate,
+    PrescriptionUpdate,
+)
 from src.repository.crud.prescription import (
     create_prescription,
     delete_prescription,
@@ -15,6 +18,7 @@ from src.repository.crud.prescription import (
 )
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -49,15 +53,19 @@ async def create_prescription_endpoint(
     """
     try:
         logger.info(f"Doctor {current_user.user_id} is creating a prescription.")
-        prescription = await create_prescription(db, prescription_data, current_user.user_id)
-        logger.info(f"Prescription created successfully with ID: {prescription.prescription_id}")
+        prescription = await create_prescription(
+            db, prescription_data, current_user.user_id
+        )
+        logger.info(
+            f"Prescription created successfully with ID: {prescription.prescription_id}"
+        )
         return Prescription.from_orm(prescription)
     except Exception as e:
         logger.error(f"Unexpected error during prescription creation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Internal server error occurred while creating the prescription.",
+                detail=ErrorMessages.PRESCRIPTION_CREATION_ERROR.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -96,7 +104,9 @@ async def get_prescription_endpoint(
             logger.warning(f"Prescription with ID: {prescription_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Prescription with ID: {prescription_id} not found",
+                detail=ErrorMessages.PRESCRIPTION_NOT_FOUND.value.format(
+                    prescription_id
+                ),
             )
         return Prescription.from_orm(prescription)
     except HTTPException:
@@ -105,7 +115,7 @@ async def get_prescription_endpoint(
         logger.error(f"Unexpected error during prescription update: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while updating the prescription.",
+            detail=ErrorMessages.PRESCRIPTION_UPDATE_ERROR.value,
         ) from e
 
 
@@ -139,12 +149,18 @@ async def update_prescription_endpoint(
         HTTPException: If the prescription is not found or if there's an unexpected error.
     """
     try:
-        updated_prescription = await update_prescription(db, prescription_id, prescription_data)
+        updated_prescription = await update_prescription(
+            db, prescription_id, prescription_data
+        )
         if not updated_prescription:
-            logger.warning(f"Prescription with ID: {prescription_id} not found for update")
+            logger.warning(
+                f"Prescription with ID: {prescription_id} not found for update"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Prescription with ID: {prescription_id} not found",
+                detail=ErrorMessages.PRESCRIPTION_NOT_FOUND.value.format(
+                    prescription_id
+                ),
             )
         return Prescription.from_orm(updated_prescription)
     except HTTPException:
@@ -153,7 +169,7 @@ async def update_prescription_endpoint(
         logger.error(f"Unexpected error during prescription update: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while updating the prescription.",
+            detail=ErrorMessages.PRESCRIPTION_UPDATE_ERROR.value,
         ) from e
 
 
@@ -184,10 +200,14 @@ async def delete_prescription_endpoint(
     try:
         deleted = await delete_prescription(db, prescription_id)
         if not deleted:
-            logger.warning(f"Prescription with ID: {prescription_id} not found for deletion")
+            logger.warning(
+                f"Prescription with ID: {prescription_id} not found for deletion"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Prescription with ID: {prescription_id} not found",
+                detail=ErrorMessages.PRESCRIPTION_NOT_FOUND.value.format(
+                    prescription_id
+                ),
             )
         logger.info(f"Prescription with ID: {prescription_id} deleted successfully")
     except HTTPException:
@@ -196,5 +216,5 @@ async def delete_prescription_endpoint(
         logger.error(f"Unexpected error during prescription deletion: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while deleting the prescription.",
+            detail=ErrorMessages.PRESCRIPTION_DELETION_ERROR.value,
         ) from e
