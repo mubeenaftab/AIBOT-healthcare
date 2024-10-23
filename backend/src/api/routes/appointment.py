@@ -21,13 +21,11 @@ from fastapi_pagination import Params
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings.logger_config import logger
 from src.models.db.user import Doctor
-
 from src.models.schemas.appointment import (
     Appointment,
     AppointmentCreate,
     PagedAppointment,
 )
-
 from src.models.schemas.error_response import ErrorResponse
 from src.repository.crud.appointment import (
     create_appointment,
@@ -35,13 +33,13 @@ from src.repository.crud.appointment import (
     fetch_doctor_appointments,
     mark_appointment_as_inactive_service,
 )
-
 from src.repository.crud.timeslot import (
     get_time_slot_by_id_from_db,
     update_time_slot_status,
 )
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
 
@@ -73,7 +71,7 @@ async def book_appointment(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
-                    detail="The selected time slot is unavailable",
+                    detail=ErrorMessages.TIME_SLOT_UNAVAILABLE,
                     status_code=status.HTTP_400_BAD_REQUEST,
                 ).dict(),
             )
@@ -87,7 +85,7 @@ async def book_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Error booking the appointment",
+                detail=ErrorMessages.ERROR_BOOKING_APPOINTMENT,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -124,7 +122,7 @@ async def get_current_doctor_appointments(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorResponse(
-                    detail="No appointments found for the specified doctor",
+                    detail=ErrorMessages.NO_APPOINTMENTS_FOUND,
                     status_code=status.HTTP_404_NOT_FOUND,
                 ).dict(),
             )
@@ -135,7 +133,7 @@ async def get_current_doctor_appointments(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Error retrieving the doctor's appointments",
+                detail=ErrorMessages.ERROR_RETRIEVING_APPOINTMENTS,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -172,7 +170,9 @@ async def mark_appointment_as_inactive(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorResponse(
-                    detail=f"Appointment with ID {appointment_id} not found.",
+                    detail=ErrorMessages.APPOINTMENT_NOT_FOUND.format(
+                        appointment_id=appointment_id
+                    ),
                     status_code=status.HTTP_404_NOT_FOUND,
                 ).dict(),
             )
@@ -181,7 +181,7 @@ async def mark_appointment_as_inactive(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=ErrorResponse(
-                    detail="You do not have permission to mark this appointment as inactive.",
+                    detail=ErrorMessages.PERMISSION_DENIED,
                     status_code=status.HTTP_403_FORBIDDEN,
                 ).dict(),
             )
@@ -197,7 +197,9 @@ async def mark_appointment_as_inactive(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail=f"Unexpected error occurred while marking appointment {appointment_id} inactive.",
+                detail=ErrorMessages.UNEXPECTED_ERROR_MARKING_INACTIVE.format(
+                    appointment_id=appointment_id
+                ),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e

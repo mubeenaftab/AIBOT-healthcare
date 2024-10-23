@@ -2,14 +2,19 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi_pagination import add_pagination, Params
+from fastapi_pagination import Params, add_pagination
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.config.settings.logger_config import logger
 from src.models.schemas.appointment import PagedAppointment
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.user import PagedDoctor, PagedPatient
+from src.models.schemas.user import (
+    Admin,
+    AdminCreate,
+    PagedDoctor,
+    PagedPatient,
+)
 from src.repository.crud.admin import (
+    create_admin,
     delete_doctor,
     delete_patient,
     get_all_appointments,
@@ -17,8 +22,46 @@ from src.repository.crud.admin import (
     get_all_patients,
 )
 from src.repository.database import get_db
+from src.utilities.constants import ErrorMessages
 
 router = APIRouter()
+
+
+@router.post(
+    "/register/admin",
+    response_model=Admin,
+    responses={500: {"model": ErrorResponse}},
+)
+async def register_admin(
+    admin: AdminCreate, db: AsyncSession = Depends(get_db)
+) -> Admin:
+    """
+    Register a new admin.
+
+    Args:
+        admin (AdminCreate): The admin data for registration.
+        db (Session): The database session.
+
+    Returns:
+        AdminSchema: The registered admin.
+
+    Raises:
+        HTTPException: If there's an error during admin creation.
+    """
+    try:
+        logger.info(f"Attempting to register admin with username: {admin.username}")
+        db_admin = await create_admin(db, admin)
+        logger.info(f"Admin registered successfully with ID: {db_admin.user_id}")
+        return Admin.from_orm(db_admin)
+    except Exception as e:
+        logger.error(f"Unexpected error during admin registration: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                detail=ErrorMessages.ADMIN_EXISTS.value,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ).dict(),
+        ) from e
 
 
 @router.get(
@@ -55,7 +98,7 @@ async def get_all_appointments_endpoint(
         logger.error(f"Unexpected error while retrieving appointments: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while retrieving appointments.",
+            detail=ErrorMessages.APPOINTMENTS_FETCH_ERROR.value,
         ) from e
 
 
@@ -95,7 +138,7 @@ async def get_all_doctors_endpoint(
         logger.error(f"Unexpected error while retrieving doctors: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while retrieving doctors.",
+            detail=ErrorMessages.DOCTORS_FETCH_ERROR.value,
         ) from e
 
 
@@ -135,7 +178,7 @@ async def get_all_patients_endpoint(
         logger.error(f"Unexpected error while retrieving patients: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while retrieving patients.",
+            detail=ErrorMessages.PATIENTS_FETCH_ERROR.value,
         ) from e
 
 
@@ -168,7 +211,7 @@ async def delete_doctor_endpoint(
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Doctor with ID: {doctor_id} not found",
+                detail=ErrorMessages.NO_DOCTOR_FOUND.value,
             )
     except HTTPException:
         raise
@@ -176,7 +219,7 @@ async def delete_doctor_endpoint(
         logger.error(f"Unexpected error while deleting doctor: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while deleting the doctor.",
+            detail=ErrorMessages.INTERNAL_SERVER_ERROR.value,
         ) from e
 
 
@@ -209,7 +252,7 @@ async def delete_patient_endpoint(
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Patient with ID: {patient_id} not found",
+                detail=ErrorMessages.PATIENT_NOT_FOUND.value,
             )
     except HTTPException:
         raise
@@ -217,7 +260,7 @@ async def delete_patient_endpoint(
         logger.error(f"Unexpected error while deleting patient: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred while deleting the patient.",
+            detail=ErrorMessages.INTERNAL_SERVER_ERROR.value,
         ) from e
 
 

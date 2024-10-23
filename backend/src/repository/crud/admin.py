@@ -1,17 +1,99 @@
-from typing import List, Optional
+"""
+Imports for handling user models, schemas, and asynchronous database operations.
+Includes support for logging and password hashing.
+
+- Optional: Provides type hinting for optional types.
+- Pendulum: Date and time manipulation.
+- AsyncSession: Asynchronous database session management.
+- select: SQL SELECT statement construction.
+- logger: Application logging configuration.
+- AdminModel: Database models for user entities.
+- AdminCreate Pydantic schemas for user creation.
+- get_password_hash, verify_password: Functions for secure password handling.
+"""
+
+from typing import Optional
 from uuid import UUID
 
+import pendulum
 from fastapi_pagination import Params
 from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy import delete, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
 from src.config.settings.logger_config import logger
 from src.models.db.appointment import Appointment as AppointmentModel
-from src.models.db.user import Doctor as DoctorModel, Patient as PatientModel
+from src.models.db.user import Admin as AdminModel
+from src.models.db.user import Doctor as DoctorModel
+from src.models.db.user import Patient as PatientModel
 from src.models.schemas.appointment import PagedAppointment
-from src.models.schemas.user import PagedDoctor, PagedPatient
+from src.models.schemas.user import AdminCreate, PagedDoctor, PagedPatient
+from src.securities.hashing.hash import get_password_hash, verify_password
+
+
+async def create_admin(db: AsyncSession, admin: AdminCreate) -> AdminModel:
+    """
+    Creates a new admin record in the database.
+
+    Args:
+        db (AsyncSession): The database session for async operations.
+        admin (AdminCreate): The admin data for creation.
+
+    Returns:
+        AdminModel: The created admin model instance.
+
+    Raises:
+        Exception: Raises an exception if there is an error during the admin creation process.
+    """
+    try:
+        hashed_password = await get_password_hash(admin.password)
+        db_admin = AdminModel(
+            username=admin.username,
+            hashed_password=hashed_password,
+            timestamp=pendulum.now().naive(),
+        )
+        db.add(db_admin)
+        await db.commit()
+        await db.refresh(db_admin)
+        logger.info(f"Admin created successfully with username: {admin.username}")
+        return db_admin
+    except Exception as e:
+        logger.error(f"Error creating admin: {e}")
+        raise
+
+
+async def authenticate_admin(
+    db: AsyncSession, username: str, password: str
+) -> Optional[AdminModel]:
+    """
+    Authenticates an admin by verifying the username and password.
+
+    Args:
+        db (AsyncSession): The database session for async operations.
+        username (str): The admin's username.
+        password (str): The admin's password.
+
+    Returns:
+        Optional[AdminModel]: The authenticated admin object, or None if authentication fails.
+
+    Raises:
+        Exception: Raises an exception if there is an error during the authentication process.
+    """
+    try:
+        stmt = select(AdminModel).filter(AdminModel.username == username)
+        result = await db.execute(stmt)
+        admin = result.scalar_one_or_none()
+
+        if admin is None or not await verify_password(password, admin.hashed_password):
+            logger.warning(f"Authentication failed for admin with username: {username}")
+            return None
+
+        logger.info(f"Admin authenticated successfully with username: {username}")
+        return admin
+
+    except Exception as e:
+        logger.error(f"Error during admin authentication: {e}")
+        raise
 
 
 async def get_all_appointments(
@@ -133,7 +215,9 @@ async def delete_doctor(
         Exception: If there is an error during the deletion.
     """
     try:
-        result = await db.execute(delete(DoctorModel).where(DoctorModel.user_id == doctor_id))
+        result = await db.execute(
+            delete(DoctorModel).where(DoctorModel.user_id == doctor_id)
+        )
         await db.commit()
         return result.rowcount > 0
     except Exception as e:
@@ -160,7 +244,9 @@ async def delete_patient(
         Exception: If there is an error during the deletion.
     """
     try:
-        result = await db.execute(delete(PatientModel).where(PatientModel.user_id == patient_id))
+        result = await db.execute(
+            delete(PatientModel).where(PatientModel.user_id == patient_id)
+        )
         await db.commit()
         return result.rowcount > 0
     except Exception as e:

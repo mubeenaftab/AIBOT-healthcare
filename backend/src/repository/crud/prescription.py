@@ -6,8 +6,11 @@ from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.config.settings.logger_config import logger
+from src.models.db.reminder import Reminder as ReminderModel
 from src.models.db.prescription import Prescription as PrescriptionModel
 from src.models.schemas.prescription import PrescriptionCreate, PrescriptionUpdate
+from src.models.schemas.reminder import ReminderStatus
+
 
 
 async def create_prescription(
@@ -217,3 +220,49 @@ async def mark_prescription_inactive(
         logger.error(f"Error marking prescription as inactive: {e}")
         await db.rollback()
         return None
+
+async def get_prescriptions_for_appointment(
+    db: AsyncSession, patient_id: int, doctor_id: int
+) -> list[PrescriptionModel]:
+    """
+    Retrieve all prescriptions for the specified patient and doctor.
+
+    Args:
+        db (AsyncSession): The database session to execute queries.
+        patient_id (int): The ID of the patient.
+        doctor_id (int): The ID of the doctor.
+
+    Returns:
+        list[PrescriptionModel]: A list of prescriptions.
+    """
+    prescriptions = await db.execute(
+        select(PrescriptionModel)
+        .where(PrescriptionModel.patient_id == patient_id)
+        .where(PrescriptionModel.doctor_id == doctor_id)
+    )
+    return prescriptions.scalars().all()
+
+async def get_inactive_prescriptions_without_active_reminders(
+    db: AsyncSession, prescriptions: list[PrescriptionModel]
+) -> list[PrescriptionModel]:
+    """
+    Filter prescriptions that do not have active reminders.
+
+    Args:
+        db (AsyncSession): The database session to execute queries.
+        prescriptions (list[PrescriptionModel]): The list of prescriptions to check.
+
+    Returns:
+        list[PrescriptionModel]: A list of prescriptions that don't have active reminders.
+    """
+    inactive_prescriptions = []
+    for prescription in prescriptions:
+        if prescription.is_active:
+            active_reminders = await db.execute(
+                select(ReminderModel)
+                .where(ReminderModel.prescription_id == prescription.prescription_id)
+                .where(ReminderModel.status == ReminderStatus.ACTIVE)
+            )
+            if not active_reminders.scalars().first():
+                inactive_prescriptions.append(prescription)
+    return inactive_prescriptions

@@ -77,7 +77,7 @@ async def register_time_slot(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                detail="Error creating time slot",
+                detail=ErrorMessages.TIMESLOT_CREATION_ERROR.value,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             ).dict(),
         ) from e
@@ -100,7 +100,9 @@ async def get_available_time_slots(
 
     Returns:
         List[TimeSlot]: A list of available time slots for the given doctor.
+
     """
+
     slots = await get_available_time_slots_from_db(db, doctor_id)
     return [TimeSlot.from_orm(slot) for slot in slots] if slots else []
 
