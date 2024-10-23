@@ -10,7 +10,6 @@ from src.api.routes.reminder import activate_reminders_for_prescription
 from src.api.routes.timeslot import get_available_time_slots
 from src.config.settings.logger_config import logger
 from src.models.db.user import Patient as PatientModel
-from src.models.schemas.appointment import AppointmentCreate
 from src.models.schemas.chatbot import ChatQuery, ChatResponse
 from src.models.schemas.error_response import ErrorResponse
 from src.models.schemas.user import DoctorResponse
