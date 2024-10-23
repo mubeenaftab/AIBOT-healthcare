@@ -7,12 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings.logger_config import logger
 from src.models.schemas.appointment import PagedAppointment
 from src.models.schemas.error_response import ErrorResponse
-from src.models.schemas.user import (
-    Admin,
-    AdminCreate,
-    PagedDoctor,
-    PagedPatient,
-)
+from src.models.schemas.admin import Admin, AdminCreate
+from src.models.schemas.doctor import PagedDoctor
+from src.models.schemas.patient import PagedPatient
 from src.repository.crud.admin import (
     create_admin,
     delete_doctor,

@@ -20,10 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.config.settings.logger_config import logger
 from src.models.db.user import Patient as PatientModel
-from src.models.schemas.user import (
-    PatientCreate,
-    PatientUpdate,
-)
+
+from src.models.schemas.patient import PatientCreate, PatientUpdate
 from src.securities.hashing.hash import get_password_hash, verify_password
 
 
@@ -48,8 +46,13 @@ async def create_patient(db: AsyncSession, patient: PatientCreate) -> PatientMod
             hashed_password=hashed_password,
             first_name=patient.first_name,
             last_name=patient.last_name,
+            email=patient.email,
+            city=patient.city,
             phone_number=patient.phone_number,
             dob=patient.dob,
+            gender=patient.gender,
+            blood_group=patient.blood_group,
+            emergency_contact=patient.emergency_contact,
             timestamp=pendulum.now().naive(),
         )
         db.add(db_patient)
@@ -70,7 +73,7 @@ async def update_patient(
 
     Args:
         db (AsyncSession): The database session for async operations.
-        patient_id (int): The ID of the patient to update.
+        patient_id (UUID): The ID of the patient to update.
         patient_update (PatientUpdate): The patient data to update.
 
     Returns:
@@ -96,8 +99,18 @@ async def update_patient(
             db_patient.last_name = patient_update.last_name
         if patient_update.phone_number:
             db_patient.phone_number = patient_update.phone_number
+        if patient_update.email:
+            db_patient.email = patient_update.email
+        if patient_update.city:
+            db_patient.city = patient_update.city
         if patient_update.dob:
             db_patient.dob = patient_update.dob
+        if patient_update.gender:
+            db_patient.gender = patient_update.gender
+        if patient_update.blood_group:
+            db_patient.blood_group = patient_update.blood_group
+        if patient_update.emergency_contact:
+            db_patient.emergency_contact = patient_update.emergency_contact
 
         # Commit the changes
         await db.commit()
@@ -105,7 +118,7 @@ async def update_patient(
         logger.info(f"Patient with ID {patient_id} updated successfully")
         return db_patient
     except ValueError as e:
-        logger.error(f" Pateint update error: {e}")
+        logger.error(f"Patient update error: {e}")
         raise
     except Exception as e:
         logger.error(f"Error updating patient with ID {patient_id}: {e}")

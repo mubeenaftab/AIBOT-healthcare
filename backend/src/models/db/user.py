@@ -25,10 +25,13 @@ Classes:
 
 import uuid
 
-from sqlalchemy import Boolean, Column, Date, String, text
+from sqlalchemy import Boolean, Column, Date, String, Integer, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import relationship
 from src.repository.database import Base
+
+
+
 
 
 class BaseUser(Base):
@@ -42,6 +45,8 @@ class BaseUser(Base):
         hashed_password (str): Hashed password for user authentication.
         is_active (bool): Indicates whether the user's account is active. Defaults to True.
         timestamp (datetime): Timestamp for when the user record was created, defaults to the current time.
+        email (str): The email address of the user, must be unique.
+        city (str): The city where the user resides.
     """
 
     __abstract__ = True
@@ -51,6 +56,8 @@ class BaseUser(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     timestamp = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    city = Column(String, nullable=True)
 
 
 class Patient(BaseUser):
@@ -63,7 +70,11 @@ class Patient(BaseUser):
         last_name (str): The last name of the patient.
         phone_number (str): The patient's phone number, must be unique.
         dob (date): The date of birth of the patient.
-        appointments: relation between appointment and patient
+        gender (GenderEnum): Gender of the patient.
+        blood_group (BloodGroupEnum): Blood group of the patient.
+        emergency_contact (str): Emergency contact number, optional.
+        appointments: relation between appointment and patient.
+        prescriptions: relation between prescription and patient.
     """
 
     __tablename__ = "patients"
@@ -72,6 +83,9 @@ class Patient(BaseUser):
     last_name = Column(String, nullable=False)
     phone_number = Column(String(11), nullable=False, unique=True)
     dob = Column(Date, nullable=False)
+    gender = Column(String(6), nullable=False)
+    blood_group = Column(String(6), nullable=True)
+    emergency_contact = Column(String(11), nullable=True)
     appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
     prescriptions = relationship("Prescription", back_populates="patient", cascade="all, delete-orphan")
 
@@ -86,8 +100,12 @@ class Doctor(BaseUser):
         last_name (str): The last name of the doctor.
         specialization (str): The medical specialization of the doctor.
         phone_number (str): The doctor's phone number, must be unique.
+        gender (GenderEnum): Gender of the doctor.
+        years_of_experience (int): Number of years the doctor has been practicing.
+        consultation_fee (float): The consultation fee charged by the doctor.
         time_slots: relation between doctor and timeslot.
         appointments: relation between appointment and doctor.
+        prescriptions: relation between prescription and doctor.
     """
 
     __tablename__ = "doctors"
@@ -96,6 +114,9 @@ class Doctor(BaseUser):
     last_name = Column(String, nullable=False)
     specialization = Column(String, nullable=False)
     phone_number = Column(String(11), nullable=False, unique=True)
+    gender = Column(String(6), nullable=False)
+    years_of_experience = Column(Integer, nullable=False)
+    consultation_fee = Column(Integer, nullable=False)
     time_slots = relationship("TimeSlot", back_populates="doctor", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
     prescriptions = relationship("Prescription", back_populates="doctor", cascade="all, delete-orphan")
@@ -108,3 +129,4 @@ class Admin(BaseUser):
     """
 
     __tablename__ = "admins"
+

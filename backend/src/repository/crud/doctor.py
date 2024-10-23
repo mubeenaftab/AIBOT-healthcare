@@ -21,13 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.config.settings.logger_config import logger
 from src.models.db.user import Doctor as DoctorModel
-from src.models.schemas.user import (
-    DoctorCreate,
-    DoctorUpdate,
-)
+from src.models.schemas.doctor import DoctorCreate, DoctorUpdate
 from src.securities.hashing.hash import get_password_hash, verify_password
 from src.utilities.specialization_mapper import SpecializationMapper
-
 
 
 async def create_doctor(db: AsyncSession, doctor: DoctorCreate) -> DoctorModel:
@@ -51,8 +47,13 @@ async def create_doctor(db: AsyncSession, doctor: DoctorCreate) -> DoctorModel:
             hashed_password=hashed_password,
             first_name=doctor.first_name,
             last_name=doctor.last_name,
+            email=doctor.email,
+            city=doctor.city,
             specialization=doctor.specialization,
             phone_number=doctor.phone_number,
+            gender=doctor.gender,
+            years_of_experience=doctor.years_of_experience,
+            consultation_fee=doctor.consultation_fee,
             timestamp=pendulum.now().naive(),
         )
         db.add(db_doctor)
@@ -97,8 +98,18 @@ async def update_doctor(
             db_doctor.last_name = doctor_update.last_name
         if doctor_update.phone_number:
             db_doctor.phone_number = doctor_update.phone_number
+        if doctor_update.email:
+            db_doctor.email = doctor_update.email
+        if doctor_update.city:
+            db_doctor.city = doctor_update.city
         if doctor_update.specialization:
             db_doctor.specialization = doctor_update.specialization
+        if doctor_update.gender:
+            db_doctor.gender = doctor_update.gender
+        if doctor_update.years_of_experience is not None:
+            db_doctor.years_of_experience = doctor_update.years_of_experience
+        if doctor_update.consultation_fee is not None:
+            db_doctor.consultation_fee = doctor_update.consultation_fee
 
         # Commit the changes
         await db.commit()
