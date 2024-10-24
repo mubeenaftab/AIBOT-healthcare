@@ -1,4 +1,5 @@
 import re
+
 from datetime import date
 from typing import Optional
 
@@ -151,6 +152,7 @@ class PatientUpdate(BaseModel):
     gender: Optional[str]
     blood_group: Optional[str]
     emergency_contact: Optional[str]
+
 
     @field_validator("city")
     @classmethod
