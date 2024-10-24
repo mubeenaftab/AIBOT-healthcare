@@ -1,8 +1,9 @@
+import re
 from datetime import date
 from typing import Optional
 
 from fastapi_pagination import Page
-from pydantic import UUID4, BaseModel, Field, field_validator
+from pydantic import UUID4, BaseModel, Field, field_validator, EmailStr
 
 from src.models.schemas.user import UserCreate, UserBase
 
@@ -140,7 +141,7 @@ class PatientUpdate(BaseModel):
         emergency_contact (Optional[str]): The emergency contact phone number (must be a valid Pakistani number if provided).
     """
 
-    email: Optional[str]
+    email: Optional[EmailStr]
     password: Optional[str]
     first_name: Optional[str]
     last_name: Optional[str]
@@ -150,25 +151,6 @@ class PatientUpdate(BaseModel):
     gender: Optional[str]
     blood_group: Optional[str]
     emergency_contact: Optional[str]
-
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, value: Optional[str]) -> Optional[str]:
-        """
-        Validate the email address format.
-
-        Args:
-            value (str): The email to validate.
-
-        Returns:
-            str: The validated email.
-
-        Raises:
-            ValueError: If the email format is invalid.
-        """
-        if value and not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", value):
-            raise ValueError("Invalid email format")
-        return value
 
     @field_validator("city")
     @classmethod

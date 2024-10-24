@@ -11,6 +11,7 @@ from src.repository.crud.patient import (
     get_patient_by_id_from_db,
     update_patient,
 )
+from src.repository.crud.admin import delete_patient
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
 from src.utilities.constants import ErrorMessages
@@ -142,3 +143,44 @@ async def get_patient_by_id(
 
     logger.info(f"Patient with ID {patient_id} found: {patient}")
     return Patient.from_orm(patient)
+
+
+@router.delete(
+    "/patients/{patient_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def delete_patient_endpoint(
+    patient_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a patient by their ID.
+
+    This endpoint allows an admin to delete a specific patient using their unique identifier.
+
+    Args:
+        patient_id: The UUID of the patient to delete.
+        db: The database session for performing the operation.
+
+    Raises:
+        HTTPException: If the patient is not found or if there's an unexpected error.
+    """
+    try:
+        deleted = await delete_patient(db, patient_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.PATIENT_NOT_FOUND.value,
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error while deleting patient: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorMessages.INTERNAL_SERVER_ERROR.value,
+        ) from e
