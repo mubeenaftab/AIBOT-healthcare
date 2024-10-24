@@ -70,6 +70,7 @@ class ChatbotResponses:
         "Your appointment with Dr. {doctor_name} has been successfully booked for {start_time} - {end_time}. \n\n"
         "You can ask any time about your prescription. If prescriptions are available, I can help you activate medication reminders. "
         "If no prescriptions are entered yet, I'll let you know.\n"
+        "For furthur queries you can contact here {email}.\n"
         "You can type 'reset' or 'start over' at any time to begin a new conversation."
     )
     INVALID_SLOT_SELECTION = (
