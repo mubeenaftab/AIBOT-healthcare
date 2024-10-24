@@ -14,9 +14,10 @@ Includes routing, dependency management, and database interactions.
 - get_db: Dependency to obtain a database session.
 """
 
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi_pagination import Params
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings.logger_config import logger
@@ -30,7 +31,8 @@ from src.models.schemas.error_response import ErrorResponse
 from src.repository.crud.appointment import (
     create_appointment,
     fetch_appointment_by_id,
-    fetch_doctor_appointments,
+    fetch_doctor_active_appointments,
+    fetch_doctor_inactive_appointments,
     mark_appointment_as_inactive_service,
 )
 from src.repository.crud.timeslot import (
@@ -92,14 +94,16 @@ async def book_appointment(
 
 
 @router.get(
-    "/doctor/appointments",
+    "/doctor/active/appointments",
     response_model=PagedAppointment,
     responses={404: {"model": ErrorResponse}, 400: {"model": ErrorResponse}},
 )
-async def get_current_doctor_appointments(
+async def get_current_doctor_active_appointments(
     current_user: Doctor = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     params: Params = Depends(),
+    search: Optional[str] = None,
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
 ) -> PagedAppointment:
     """
     Retrieve paginated appointments for the currently logged-in doctor.
@@ -116,7 +120,61 @@ async def get_current_doctor_appointments(
         HTTPException: If no appointments are found for the doctor.
     """
     try:
-        appointments = await fetch_doctor_appointments(db, current_user.user_id, params)
+        appointments = await fetch_doctor_active_appointments(
+            db, current_user.user_id, params, search, sort_order
+        )
+
+        if not appointments.items:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    detail=ErrorMessages.NO_APPOINTMENTS_FOUND,
+                    status_code=status.HTTP_404_NOT_FOUND,
+                ).dict(),
+            )
+
+        return appointments
+    except Exception as e:
+        logger.error(f"Error retrieving doctor's appointments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                detail=ErrorMessages.ERROR_RETRIEVING_APPOINTMENTS,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ).dict(),
+        ) from e
+
+
+@router.get(
+    "/doctor/inactive/appointments",
+    response_model=PagedAppointment,
+    responses={404: {"model": ErrorResponse}, 400: {"model": ErrorResponse}},
+)
+async def get_current_doctor_inactive_appointments(
+    current_user: Doctor = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    params: Params = Depends(),
+    search: Optional[str] = None,
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+) -> PagedAppointment:
+    """
+    Retrieve paginated appointments for the currently logged-in doctor.
+
+    Args:
+        current_user (Doctor): The currently logged-in doctor (validated by role).
+        db (AsyncSession): The database session.
+        params (Params): Pagination parameters.
+
+    Returns:
+        PagedAppointment: Paginated list of appointments for the doctor.
+
+    Raises:
+        HTTPException: If no appointments are found for the doctor.
+    """
+    try:
+        appointments = await fetch_doctor_inactive_appointments(
+            db, current_user.user_id, params, search, sort_order
+        )
 
         if not appointments.items:
             raise HTTPException(
