@@ -1,5 +1,5 @@
 from typing import Optional, Literal
-from pydantic import BaseModel, Field, conint, field_validator, UUID4
+from pydantic import BaseModel, Field, conint, field_validator, UUID4, EmailStr, validator
 from fastapi_pagination import Page
 from src.models.schemas.user import UserCreate, UserBase
 
@@ -160,9 +160,6 @@ class DoctorResponse(BaseModel):
     last_name: str
     specialization: str
 
-
-from pydantic import BaseModel, Field, EmailStr, conint, validator
-from typing import Optional, Literal
 
 class DoctorUpdate(BaseModel):
     """

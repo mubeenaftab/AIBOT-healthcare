@@ -12,6 +12,7 @@ from src.repository.crud.doctor import (
     get_doctors_by_specialization_from_db,
     update_doctor,
 )
+from src.repository.crud.admin import delete_doctor
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
 from src.utilities.constants import ErrorMessages
@@ -180,3 +181,43 @@ async def get_doctor_by_id(
 
     logger.info(f"Doctor with ID {doctor_id} found: {doctor}")
     return Doctor.from_orm(doctor)
+
+@router.delete(
+    "/doctors/{doctor_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def delete_doctor_endpoint(
+    doctor_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a doctor by their ID.
+
+    This endpoint allows an admin to delete a specific doctor using their unique identifier.
+
+    Args:
+        doctor_id: The UUID of the doctor to delete.
+        db: The database session for performing the operation.
+
+    Raises:
+        HTTPException: If the doctor is not found or if there's an unexpected error.
+    """
+    try:
+        deleted = await delete_doctor(db, doctor_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.NO_DOCTOR_FOUND.value,
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error while deleting doctor: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorMessages.INTERNAL_SERVER_ERROR.value,
+        ) from e
