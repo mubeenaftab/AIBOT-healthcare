@@ -12,8 +12,8 @@ from src.config.settings.logger_config import logger
 from src.models.db.user import Patient as PatientModel
 from src.models.schemas.appointment import AppointmentCreate
 from src.models.schemas.chatbot import ChatQuery, ChatResponse
-from src.models.schemas.error_response import ErrorResponse
 from src.models.schemas.doctor import DoctorResponse
+from src.models.schemas.error_response import ErrorResponse
 from src.repository.crud.appointment import get_inactive_appointment
 from src.repository.crud.chat import get_chatbot_response, reminder_queue
 from src.repository.crud.prescription import (
@@ -126,7 +126,7 @@ async def chat_with_bot(
 
             doctor_list = "\n".join(
                 [
-                    f"Dr. {doctor.first_name} {doctor.last_name} ({doctor.specialization})"
+                    f"Dr. {doctor.first_name} {doctor.last_name} ({doctor.specialization}) | Experience: {doctor.years_of_experience} years | Fees: Rs.{doctor.consultation_fee}"
                     for doctor in doctors_response
                 ]
             )
@@ -144,6 +144,8 @@ async def chat_with_bot(
                         first_name=doctor.first_name,
                         last_name=doctor.last_name,
                         specialization=doctor.specialization,
+                        years_of_experience=doctor.years_of_experience,
+                        consultation_fee=doctor.consultation_fee,
                     )
                     for doctor in doctors_response
                 ],
@@ -287,6 +289,7 @@ async def handle_slot_selection(
                     doctor_name=f"{conversation_state['selected_doctor'].first_name} {conversation_state['selected_doctor'].last_name}",
                     start_time=selected_slot.start_time.strftime("%I:%M %p"),
                     end_time=selected_slot.end_time.strftime("%I:%M %p"),
+                    email=f"{conversation_state['selected_doctor'].email}",
                 ),
             )
         else:
