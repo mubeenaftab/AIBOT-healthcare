@@ -171,6 +171,5 @@ virtualenv==20.26.3
 w3lib==2.1.2
 webdriver-manager==4.0.1
 win32-setctime==1.1.0
-websockets==13.1
 wsproto==1.2.0
 zope.interface==6.3
