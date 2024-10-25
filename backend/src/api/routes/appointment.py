@@ -39,9 +39,11 @@ from src.repository.crud.timeslot import (
     get_time_slot_by_id_from_db,
     update_time_slot_status,
 )
+from src.repository.crud.patient import get_patient_by_id_from_db
 from src.repository.database import get_db
 from src.securities.verification.credentials import get_current_user
 from src.utilities.constants import ErrorMessages
+from src.utilities.notification_service import notification_manager
 
 router = APIRouter()
 
@@ -80,6 +82,13 @@ async def book_appointment(
 
         db_appointment = await create_appointment(db, appointment_data)
         await update_time_slot_status(db, appointment_data.time_slot_id, "booked")
+
+        patient = await get_patient_by_id_from_db(db, appointment_data.patient_id)
+
+        patient_name = f"{patient.first_name} {patient.last_name}"
+
+        message = f"A new appointment has been booked for {patient_name} on {appointment_data.appointment_date}."
+        await notification_manager.send_notification(appointment_data.doctor_id, message)
 
         return Appointment.from_orm(db_appointment)
     except Exception as e:

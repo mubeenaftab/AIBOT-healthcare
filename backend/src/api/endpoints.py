@@ -8,6 +8,8 @@ from src.api.routes.prescription import router as prescription_router
 from src.api.routes.reminder import router as reminder_router
 from src.api.routes.timeslot import router as timeslot_router
 from src.api.routes.user import router as user_router
+from src.api.routes.notification import router as notification_router
+
 
 router = fastapi.APIRouter()
 router.include_router(router=user_router)
@@ -19,3 +21,4 @@ router.include_router(router=admin_router)
 router.include_router(router=reminder_router)
 router.include_router(router=patient_router)
 router.include_router(router=doctor_router)
+router.include_router(router=notification_router)
