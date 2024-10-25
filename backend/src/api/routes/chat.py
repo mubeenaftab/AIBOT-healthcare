@@ -79,7 +79,7 @@ async def chat_with_bot(
         conversation_state.pop("selected_doctor", None)
         conversation_state.pop("appointment_id", None)
         return ChatResponse(
-            response="The conversation has been reset. You can start by asking a new question.",
+            response=ChatbotResponses.NEW_CONVERSATION.value,
         )
 
     try:
@@ -189,7 +189,7 @@ async def handle_doctor_selection(user_message: str, db: AsyncSession) -> ChatRe
             logger.debug("available_slots: %s", available_slots)
 
             if not available_slots:
-                no_slots_response = ChatbotResponses.NO_AVAILABLE_SLOTS.format(
+                no_slots_response = ChatbotResponses.NO_AVAILABLE_SLOTS.value.format(
                     doctor_name=f"{doctor.first_name} {doctor.last_name}"
                 )
 
@@ -210,14 +210,14 @@ async def handle_doctor_selection(user_message: str, db: AsyncSession) -> ChatRe
                     return ChatResponse(
                         response=(
                             f"{no_slots_response}\n\n"
-                            f"{ChatbotResponses.OTHER_DOCTORS_AVAILABLE.format(doctor_list=doctor_list)}"
+                            f"{ChatbotResponses.OTHER_DOCTORS_AVAILABLE.value.format(doctor_list=doctor_list)}"
                         ),
                     )
                 else:
                     return ChatResponse(
                         response=(
                             f"{no_slots_response}\n\n"
-                            f"{ChatbotResponses.NO_OTHER_DOCTORS}"
+                            f"{ChatbotResponses.NO_OTHER_DOCTORS.value}"
                         ),
                     )
 
@@ -231,14 +231,14 @@ async def handle_doctor_selection(user_message: str, db: AsyncSession) -> ChatRe
             conversation_state["selected_doctor"] = doctor
 
             return ChatResponse(
-                response=ChatbotResponses.AVAILABLE_SLOTS.format(
+                response=ChatbotResponses.AVAILABLE_SLOTS.value.format(
                     doctor_name=f"{doctor.first_name} {doctor.last_name}",
                     slots_list=slots_list,
                 ),
             )
 
     return ChatResponse(
-        response=ChatbotResponses.DOCTOR_NOT_FOUND,
+        response=ChatbotResponses.DOCTOR_NOT_FOUND.value,
     )
 
 
@@ -285,7 +285,7 @@ async def handle_slot_selection(
             conversation_state["stage"] = "general"
 
             return ChatResponse(
-                response=ChatbotResponses.APPOINTMENT_BOOKED.format(
+                response=ChatbotResponses.APPOINTMENT_BOOKED.value.format(
                     doctor_name=f"{conversation_state['selected_doctor'].first_name} {conversation_state['selected_doctor'].last_name}",
                     start_time=selected_slot.start_time.strftime("%I:%M %p"),
                     end_time=selected_slot.end_time.strftime("%I:%M %p"),
@@ -294,12 +294,12 @@ async def handle_slot_selection(
             )
         else:
             return ChatResponse(
-                response=ChatbotResponses.INVALID_SLOT_SELECTION,
+                response=ChatbotResponses.INVALID_SLOT_SELECTION.value,
             )
 
     except ValueError:
         return ChatResponse(
-            response=ChatbotResponses.INVALID_INPUT,
+            response=ChatbotResponses.INVALID_INPUT.value,
         )
 
 
@@ -341,19 +341,21 @@ async def check_inactive_appointments(
                     for idx, p in enumerate(inactive_prescriptions)
                 )
                 return ChatResponse(
-                    response=ChatbotResponses.PRESCRIPTIONS_FOUND.format(
+                    response=ChatbotResponses.PRESCRIPTIONS_FOUND.value.format(
                         prescription_list=prescription_list
                     )
                 )
             else:
                 conversation_state["stage"] = "waiting_for_exit"
-                return ChatResponse(response=ChatbotResponses.ALL_REMINDERS_ACTIVE)
+                return ChatResponse(
+                    response=ChatbotResponses.ACTIVE_PRESCRIPTIONS_HAVE_REMINDERS.value
+                )
         else:
             conversation_state["stage"] = "waiting_for_exit"
-            return ChatResponse(response=ChatbotResponses.NO_NEW_PRESCRIPTIONS)
+            return ChatResponse(response=ChatbotResponses.NO_NEW_PRESCRIPTIONS.value)
     else:
         conversation_state["stage"] = "waiting_for_exit"
-        return ChatResponse(response=ChatbotResponses.NO_PRESCRIPTIONS)
+        return ChatResponse(response=ChatbotResponses.NO_PRESCRIPTIONS.value)
 
 
 async def handle_exit_responses(user_message: str) -> ChatResponse:
@@ -369,9 +371,9 @@ async def handle_exit_responses(user_message: str) -> ChatResponse:
     if user_message.lower() in ["ok", "okay", "fine", "thanks", "exit", "no"]:
         conversation_state.clear()
         conversation_state["stage"] = "reset"
-        return ChatResponse(response=ChatbotResponses.CONFIRM_EXIT)
+        return ChatResponse(response=ChatbotResponses.CONFIRM_EXIT.value)
     else:
-        return ChatResponse(response=ChatbotResponses.EXIT_UNRECOGNIZED_RESPONSE)
+        return ChatResponse(response=ChatbotResponses.EXIT_UNRECOGNIZED_RESPONSE.value)
 
 
 async def handle_activate_reminders(
@@ -427,14 +429,14 @@ async def handle_activate_reminders(
                 conversation_state["stage"] = "update_reminder_prompt"
                 conversation_state["prescription_id"] = prescription_id
                 return ChatResponse(
-                    response=ChatbotResponses.REMINDERS_ACTIVATED.format(
+                    response=ChatbotResponses.REMINDERS_ACTIVATED.value.format(
                         medication_name=medication_name, reminder_times=reminder_times
                     )
                 )
             except HTTPException as e:
                 conversation_state["stage"] = "general"
                 return ChatResponse(
-                    response=ChatbotResponses.ISSUE_ACTIVATING.format(
+                    response=ChatbotResponses.ISSUE_ACTIVATING.value.format(
                         medication_name=medication_name, error_detail=e.detail
                     )
                 )
@@ -443,15 +445,17 @@ async def handle_activate_reminders(
                 current_prescription = conversation_state["prescriptions"][0]
                 medication_name = current_prescription["details"]
                 return ChatResponse(
-                    response=ChatbotResponses.NEXT_PRESCRIPTION_PROMPT.format(
+                    response=ChatbotResponses.NEXT_PRESCRIPTION_PROMPT.value.format(
                         medication_name=medication_name
                     )
                 )
             else:
                 conversation_state["stage"] = "general"
-                return ChatResponse(response=ChatbotResponses.ALL_REMINDERS_ACTIVE)
+                return ChatResponse(
+                    response=ChatbotResponses.ALL_REMINDERS_ACTIVE.value
+                )
 
-    return ChatResponse(response=ChatbotResponses.NO_REMINDERS_ACTIVATED)
+    return ChatResponse(response=ChatbotResponses.NO_REMINDERS_ACTIVATED.value)
 
 
 async def handle_update_reminders(user_message: str) -> ChatResponse:
@@ -469,22 +473,26 @@ async def handle_update_reminders(user_message: str) -> ChatResponse:
 
     if user_message.lower() in affirmative_responses:
         conversation_state["stage"] = "collect_new_reminder_times"
-        return ChatResponse(response=ChatbotResponses.REQUEST_NEW_TIMES)
+        return ChatResponse(response=ChatbotResponses.REQUEST_NEW_TIMES.value)
     elif user_message.lower() in negative_responses:
         if conversation_state.get("prescriptions"):
             current_prescription = conversation_state["prescriptions"][0]
             medication_name = current_prescription["details"]
             conversation_state["stage"] = "activate_reminders"
             return ChatResponse(
-                response=ChatbotResponses.NEXT_PRESCRIPTION_PROMPT.format(
+                response=ChatbotResponses.NEXT_PRESCRIPTION_PROMPT.value.format(
                     medication_name=medication_name
                 )
             )
         else:
             conversation_state["stage"] = "general"
-            return ChatResponse(response=ChatbotResponses.ALL_PRESCRIPTIONS_PROCESSED)
+            return ChatResponse(
+                response=ChatbotResponses.ALL_PRESCRIPTIONS_PROCESSED.value
+            )
     else:
-        return ChatResponse(response=ChatbotResponses.UNRECOGNIZED_RESPONSE)
+        return ChatResponse(
+            response=ChatbotResponses.GENERIC_UNRECOGNIZED_RESPONSE.value
+        )
 
 
 async def collect_new_reminder_times(
@@ -521,7 +529,7 @@ async def collect_new_reminder_times(
                 medication_name = current_prescription["details"]
                 conversation_state["stage"] = "activate_reminders"
                 return ChatResponse(
-                    response=ChatbotResponses.UPDATE_SUCCESS.format(
+                    response=ChatbotResponses.UPDATE_SUCCESS.value.format(
                         formatted_times=", ".join(formatted_times),
                         medication_name=medication_name,
                     )
@@ -529,16 +537,18 @@ async def collect_new_reminder_times(
             else:
                 conversation_state["stage"] = "general"
                 return ChatResponse(
-                    response=ChatbotResponses.ALL_PRESCRIPTIONS_PROCESSED.format(
+                    response=ChatbotResponses.ALL_PRESCRIPTIONS_PROCESSED.value.format(
                         formatted_times=", ".join(formatted_times)
                     )
                 )
         else:
             conversation_state["stage"] = "general"
-            return ChatResponse(response=ChatbotResponses.FINDING_PRESCRIPTION_ERROR)
+            return ChatResponse(
+                response=ChatbotResponses.FINDING_PRESCRIPTION_ERROR.value
+            )
     except Exception as e:
         logger.error(f"Error parsing new reminder times: {e}")
-        return ChatResponse(response=ChatbotResponses.PROCESSING_ERROR)
+        return ChatResponse(response=ChatbotResponses.PROCESSING_ERROR.value)
 
 
 @router.get("/chat/reminders", response_class=JSONResponse)
